@@ -6,6 +6,9 @@ export type Key = any;
 export type ElementType = any;
 export type Props = any;
 
+/**
+ * @description jsx生成的react元素
+ */
 export interface ReactElementType {
 	$$typeof: symbol;
 	type: ElementType;
@@ -13,3 +16,5 @@ export interface ReactElementType {
 	props: Props;
 	ref: Ref;
 }
+
+export type Action<State> = State | ((preState: State) => State);
