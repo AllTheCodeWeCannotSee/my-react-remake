@@ -1,6 +1,8 @@
 import { beginWork } from './beginWork';
+import { commitMutationEffects } from './commitWork';
 import { completeWork } from './completeWork';
 import { createWorkInProgress, FiberNode, FiberRootNode } from './fiber';
+import { MutationMask, NoFlags } from './fiberFlags';
 import { HostRoot } from './workTags';
 
 let workInProgress: FiberNode | null = null;
@@ -39,6 +41,7 @@ function renderRoot(root: FiberRootNode) {
 	// 切换缓冲树
 	const finishedWork = root.current.alternate;
 	root.finishedWork = finishedWork;
+	commitRoot(root);
 }
 
 // 生成新缓冲树, wip赋值为 hostRootFiber
@@ -82,3 +85,36 @@ function completeUnitOfWork(fiber: FiberNode) {
 }
 
 // ---------------------------------- commit阶段 --------------------------------- //
+// commit 三个阶段
+// 		beforeMutation
+// 		mutation
+// 		layout
+function commitRoot(root: FiberRootNode) {
+	// finishedWork: HostFiberNode, 新生成的缓冲树
+	const finishedWork = root.finishedWork;
+	if (finishedWork === null) {
+		return;
+	}
+	if (__DEV__) {
+		console.warn('commit阶段开始', finishedWork);
+	}
+	// 1. 双缓冲树的游标 finishedWork 重置
+	root.finishedWork = null;
+	// 2. 判断是否需要进行三个子阶段
+	const subtreeHasEffect =
+		(finishedWork.subtreeFlags & MutationMask) !== NoFlags;
+	const rootHasEffect = (finishedWork.flags & MutationMask) !== NoFlags;
+	// 3. 处理
+	if (subtreeHasEffect || rootHasEffect) {
+		// beforeMutation
+		// mutation
+		commitMutationEffects(finishedWork);
+		// 4. 切换双缓冲树
+		root.current = finishedWork;
+
+		// layout
+	} else {
+		// 4. 切换双缓冲树
+		root.current = finishedWork;
+	}
+}

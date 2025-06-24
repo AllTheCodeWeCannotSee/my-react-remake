@@ -3,8 +3,8 @@ import { createFiberFromElement, FiberNode } from './fiber';
 import { REACT_ELEMENT_TYPE } from 'shared/ReactSymbols';
 import { Placement } from './fiberFlags';
 
-export const mountChildFibers = ChildReconciler(true);
-export const reconcileChildFibers = ChildReconciler(false);
+export const mountChildFibers = ChildReconciler(false);
+export const reconcileChildFibers = ChildReconciler(true);
 
 /**
  * @description 由element生成fiber，并挂载到父节点上
@@ -36,7 +36,7 @@ function ChildReconciler(shouldTrackEffects: boolean) {
 		currentFiber: FiberNode | null,
 		newChild?: ReactElementType
 	) {
-		// updateHostRoot: reconcileChildFibers(hostFiber, null, <App />)
+		// updateHostRoot: reconcileChildFibers(hostFiber, currentFiber, <App />)
 		//
 		if (typeof newChild === 'object' && newChild !== null) {
 			switch (newChild.$$typeof) {

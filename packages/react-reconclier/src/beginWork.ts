@@ -1,5 +1,5 @@
 import { ReactElementType } from 'shared/ReactTypes';
-import { mountChildFibers } from './childFibers';
+import { mountChildFibers, reconcileChildFibers } from './childFibers';
 import { FiberNode } from './fiber';
 import { processUpdateQueue, UpdateQueue } from './updateQueue';
 import { HostComponent, HostRoot, HostText } from './workTags';
@@ -43,6 +43,7 @@ function reconcileChildren(wip: FiberNode, children?: ReactElementType) {
 	const current = wip.alternate;
 	if (current !== null) {
 		// update
+		wip.child = reconcileChildFibers(wip, current?.child, children);
 	} else {
 		// mount
 		// fiber.current === null 全等于 mount
