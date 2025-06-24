@@ -36,6 +36,7 @@ export class FiberNode {
 	memoizedProps: Props | null;
 	memoizedState: any;
 	flags: Flags;
+	subtreeFlags: Flags;
 	updateQueue: any;
 	// ---------------------------------- DOM --------------------------------- //
 	stateNode: any;
@@ -58,6 +59,7 @@ export class FiberNode {
 		this.memoizedState = null;
 		this.updateQueue = null;
 		this.flags = NoFlags;
+		this.subtreeFlags = NoFlags;
 		// ---------------------------------- DOM --------------------------------- //
 		this.stateNode = null;
 	}
@@ -76,15 +78,15 @@ export const createWorkInProgress = (
 		current.alternate = wip;
 	} else {
 		// update
-		wip.pendingProps = pendingProps;
-		wip.flags = NoFlags; // why
+		wip.pendingProps = pendingProps; // 生成双缓冲树时，继承
+		wip.flags = NoFlags;
 	}
-
+	// ---------------------------------- 生成双缓冲树时，继承 --------------------------------- //
 	wip.type = current.type;
-	wip.updateQueue = current.updateQueue; // why
+	wip.updateQueue = current.updateQueue;
 	wip.child = current.child;
-	wip.memoizedProps = current.memoizedProps; // why
-	wip.memoizedState = current.memoizedState; // why
+	wip.memoizedProps = current.memoizedProps;
+	wip.memoizedState = current.memoizedState;
 
 	return wip;
 };

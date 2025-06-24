@@ -22,6 +22,7 @@ function markUpdateFromFiberToRoot(fiber: FiberNode) {
 	return null;
 }
 
+// ---------------------------------- render阶段 --------------------------------- //
 function renderRoot(root: FiberRootNode) {
 	prepareFreshStack(root);
 	while (true) {
@@ -29,10 +30,15 @@ function renderRoot(root: FiberRootNode) {
 			workLoop();
 			break;
 		} catch (e) {
-			console.warn('workLoop发生错误', e);
+			if (__DEV__) {
+				console.warn('workLoop发生错误', e);
+			}
 			workInProgress = null;
 		}
 	}
+	// 切换缓冲树
+	const finishedWork = root.current.alternate;
+	root.finishedWork = finishedWork;
 }
 
 // 生成新缓冲树, wip赋值为 hostRootFiber
@@ -40,7 +46,6 @@ function prepareFreshStack(root: FiberRootNode) {
 	workInProgress = createWorkInProgress(root.current, {});
 }
 
-// ---------------------------------- workLoop --------------------------------- //
 function workLoop() {
 	while (workInProgress !== null) {
 		performUnitOfWork(workInProgress);
@@ -75,3 +80,5 @@ function completeUnitOfWork(fiber: FiberNode) {
 		workInProgress = node;
 	}
 }
+
+// ---------------------------------- commit阶段 --------------------------------- //

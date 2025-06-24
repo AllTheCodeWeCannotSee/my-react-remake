@@ -4,10 +4,10 @@ import { FiberNode } from './fiber';
 import { processUpdateQueue, UpdateQueue } from './updateQueue';
 import { HostComponent, HostRoot, HostText } from './workTags';
 
-export const beginWork = (fiber: FiberNode) => {
-	switch (fiber.tag) {
+export const beginWork = (wip: FiberNode) => {
+	switch (wip.tag) {
 		case HostRoot:
-			return updateHostRoot(fiber);
+			return updateHostRoot(wip);
 		case HostComponent:
 		case HostText:
 			return null;

@@ -44,3 +44,5 @@ graph TD
 ## 2. reconcileChildren
 
 ## 3. completeWork
+
+此时 wip = fiberNode(<App />)
