@@ -17,4 +17,4 @@ flags: completeWork/bubbleProperties
 subtreeFlags: completeWork/bubbleProperties
 updateQueue: any;
 
-stateNode: any;
+stateNode: completeWork;
