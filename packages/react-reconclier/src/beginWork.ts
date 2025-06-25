@@ -4,11 +4,13 @@ import { FiberNode } from './fiber';
 import { processUpdateQueue, UpdateQueue } from './updateQueue';
 import { HostComponent, HostRoot, HostText } from './workTags';
 
+// beginWork的工作是处理wip的子节点
 export const beginWork = (wip: FiberNode) => {
 	switch (wip.tag) {
 		case HostRoot:
 			return updateHostRoot(wip);
 		case HostComponent:
+			return updateHostComponent(wip);
 		case HostText:
 			return null;
 		default:
@@ -36,9 +38,17 @@ function updateHostRoot(wip: FiberNode) {
 	return wip.child;
 }
 
+function updateHostComponent(wip: FiberNode) {
+	const nextProps = wip.pendingProps;
+	const nextChildren = nextProps.children;
+	reconcileChildren(wip, nextChildren);
+	return wip.child;
+}
+
 // updateHostRoot: reconcileChildren(hostRootFiber, <App />)
 //      wip: hostRootFiber, nextChildren: <App />
 //      生成 <App />
+// updateHostComponent: reconcileChildren(wip, <Child />)
 function reconcileChildren(wip: FiberNode, children?: ReactElementType) {
 	const current = wip.alternate;
 	if (current !== null) {
