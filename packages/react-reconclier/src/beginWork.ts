@@ -2,7 +2,13 @@ import { ReactElementType } from 'shared/ReactTypes';
 import { mountChildFibers, reconcileChildFibers } from './childFibers';
 import { FiberNode } from './fiber';
 import { processUpdateQueue, UpdateQueue } from './updateQueue';
-import { HostComponent, HostRoot, HostText } from './workTags';
+import {
+	FunctionComponent,
+	HostComponent,
+	HostRoot,
+	HostText
+} from './workTags';
+import { renderWithHooks } from './fiberHooks';
 
 // beginWork的工作是处理wip的子节点
 export const beginWork = (wip: FiberNode) => {
@@ -13,6 +19,8 @@ export const beginWork = (wip: FiberNode) => {
 			return updateHostComponent(wip);
 		case HostText:
 			return null;
+		case FunctionComponent:
+			return updateFunctionComponent(wip);
 		default:
 			if (__DEV__) {
 				console.warn('beginWork未实现的类型');
@@ -21,7 +29,12 @@ export const beginWork = (wip: FiberNode) => {
 	}
 	return null;
 };
+// ---------------------------------- 各种类型的 wip 对应的更新函数 --------------------------------- //
+// 1. 生成子 ReactElement
+// 2. 将 ReactElement 传入 reconcileChildren
+// 3. 返回 wip.child
 
+// reconcileChildren(wip, <App />)
 function updateHostRoot(wip: FiberNode) {
 	// baseState = null | <App />
 	const baseState = wip.memoizedState;
@@ -37,13 +50,22 @@ function updateHostRoot(wip: FiberNode) {
 	reconcileChildren(wip, nextChildren);
 	return wip.child;
 }
-
+// reconcileChildren(wip, <p></p>)
+// reconcileChildren(wip, 'hello, world')
 function updateHostComponent(wip: FiberNode) {
 	const nextProps = wip.pendingProps;
 	const nextChildren = nextProps.children;
 	reconcileChildren(wip, nextChildren);
 	return wip.child;
 }
+function updateFunctionComponent(wip: FiberNode) {
+	// nextChildren = <span>你好，世界！</span>
+	const nextChildren = renderWithHooks(wip);
+	reconcileChildren(wip, nextChildren);
+	return wip.child;
+}
+
+// ---------------------------------- reconcileChildren --------------------------------- //
 
 // updateHostRoot: reconcileChildren(hostRootFiber, <App />)
 //      wip: hostRootFiber, nextChildren: <App />

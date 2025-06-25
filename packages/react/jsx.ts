@@ -9,23 +9,26 @@ import {
 	Type
 } from 'shared/ReactTypes';
 
-// jsx
-// <div id="main">
-//   <h1>Hello</h1>
-//   <p>World</p>
-//   Some text
+// ---------------------------------- 一个例子 --------------------------------- //
+// ---------------------------------- jsx --------------------------------- //
+// <div id="greeting" className="container">
+//   Hello, World!
 // </div>
+// ---------------------------------- babel --------------------------------- //
+// jsx('div', { id: 'greeting', className: 'container' }, 'Hello, World!');
 
-// babel
-// /*#__PURE__*/ React.createElement(
-//     "div",
-//     {
-//       id: "main"
-//     },
-//     /*#__PURE__*/ React.createElement("h1", null, "Hello"),
-//     /*#__PURE__*/ React.createElement("p", null, "World"),
-//     "Some text"
-//   );
+// ---------------------------------- 结果 --------------------------------- //
+// {
+// 	$$typeof: REACT_ELEMENT_TYPE,
+// 	type: 'div',
+// 	key: null,
+// 	ref: null,
+// 	props: {
+// 	  id: 'greeting',
+// 	  className: 'container',
+// 	  children: 'Hello, World!'
+// 	}
+//   }
 
 export function jsx(
 	type: ElementType,
