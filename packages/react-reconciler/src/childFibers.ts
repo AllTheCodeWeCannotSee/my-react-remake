@@ -61,6 +61,8 @@ function ChildReconciler(shouldTrackEffects: boolean) {
 				default:
 					if (__DEV__) {
 						console.warn('未实现的reconcile类型', newChild);
+						console.warn('$$typeof', newChild.$$typeof);
+						console.warn('type: ', newChild.type);
 					}
 					break;
 			}

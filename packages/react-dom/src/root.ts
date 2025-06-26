@@ -1,8 +1,9 @@
+import { Container } from 'hostConfig';
 import {
 	createContainer,
 	updateContainer
-} from 'react-reconclier/src/fiberReconciler';
-import { Container } from 'react-reconclier/src/hostConfig';
+} from 'react-reconciler/src/fiberReconciler';
+
 import { ReactElementType } from 'shared/ReactTypes';
 
 // ReactDOM.createRoot(root).render(<App/>)
