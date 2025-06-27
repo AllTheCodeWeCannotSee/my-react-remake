@@ -18,7 +18,6 @@ export function updateContainer(
 	element: ReactElementType | null,
 	root: FiberRootNode
 ) {
-	console.warn('updateContainer', element);
 	const hostRootFiber = root.current;
 	const update = createUpdate(element);
 	enqueueUpdate(hostRootFiber.updateQueue, update);

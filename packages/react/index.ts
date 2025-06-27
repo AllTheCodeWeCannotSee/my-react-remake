@@ -1,7 +1,22 @@
+import currentDispatcher, {
+	Dispatcher,
+	resolveDispatcher
+} from './src/currentDispatcher';
 import { jsxDEV } from './src/jsx';
 // React
 
 export default {
 	version: '0.0.0',
 	createElement: jsxDEV
+};
+
+export const __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = {
+	currentDispatcher
+};
+
+// const [count, setCount] = useState(0)
+export const useState: Dispatcher['useState'] = (initialState) => {
+	// 得到当前 dispatcher
+	const dispatcher = resolveDispatcher();
+	return dispatcher.useState(initialState);
 };
