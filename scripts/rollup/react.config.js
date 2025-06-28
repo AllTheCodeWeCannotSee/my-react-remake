@@ -13,7 +13,7 @@ export default [
 		input: `${pkgPath}/${module}`,
 		output: {
 			file: `${pkgDistPath}/index.js`,
-			name: 'index.js',
+			name: 'React',
 			format: 'umd'
 		},
 		plugins: [
@@ -37,13 +37,13 @@ export default [
 			// jsx-runtime
 			{
 				file: `${pkgDistPath}/jsx-runtime.js`,
-				name: 'jsx-runtime.js',
+				name: 'jsx-runtime',
 				format: 'umd'
 			},
 			// jsx-dev-runtime
 			{
 				file: `${pkgDistPath}/jsx-dev-runtime.js`,
-				name: 'jsx-dev-runtime.js',
+				name: 'jsx-dev-runtime', //当打包生成 jsx-dev-runtime.js 这个文件后，如果它被直接用 <script> 标签在浏览器中引入，那么它会暴露一个名为 jsx-dev-runtime 的全局变量。
 				format: 'umd'
 			}
 		],
