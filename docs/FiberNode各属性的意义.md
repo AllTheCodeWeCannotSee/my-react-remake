@@ -13,8 +13,10 @@ alternate:
 ---------------------------------- 状态 ---------------------------------
 memoizedProps:
 memoizedState: 指向一个链表，链表的元素是Hooks（useState、useEffect...）
+updateQueue:
+---------------------------------- 副作用 ---------------------------------
 flags:
 subtreeFlags:
-updateQueue:
+deletions: 这个属性是一个数组，它持有那些需要从 DOM 中移除的子 FiberNode 的引用
 ---------------------------------- DOM ---------------------------------
 stateNode:

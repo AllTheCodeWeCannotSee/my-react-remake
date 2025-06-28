@@ -11,6 +11,7 @@ export const reconcileChildFibers = ChildReconciler(true);
  * @description 由element生成fiber，并挂载到父节点上
  */
 function ChildReconciler(shouldTrackEffects: boolean) {
+	// ----------------------------------处理副作用 --------------------------------- //
 	/**
 	 * @description 如果新生成的 fiber 是 1. update阶段 2. 有alternate, 则打上 Placement
 	 * @param fiber 刚刚由 element 生成的 fiber
@@ -21,6 +22,7 @@ function ChildReconciler(shouldTrackEffects: boolean) {
 		}
 		return fiber;
 	}
+
 	// ---------------------------------- 处理各种类型的 fibernode --------------------------------- //
 	// 1. 根据elemnet创建fiber
 	// 2. fiber的树形结构

@@ -35,9 +35,11 @@ export class FiberNode {
 	// ---------------------------------- 状态 --------------------------------- //
 	memoizedProps: Props | null;
 	memoizedState: any;
+	updateQueue: any;
+	// ---------------------------------- 副作用 --------------------------------- //
 	flags: Flags;
 	subtreeFlags: Flags;
-	updateQueue: any;
+	deletions: FiberNode[] | null;
 	// ---------------------------------- DOM --------------------------------- //
 	stateNode: any;
 
@@ -58,8 +60,10 @@ export class FiberNode {
 		this.memoizedProps = null;
 		this.memoizedState = null;
 		this.updateQueue = null;
+		// ---------------------------------- 副作用 --------------------------------- //
 		this.flags = NoFlags;
 		this.subtreeFlags = NoFlags;
+		this.deletions = null;
 		// ---------------------------------- DOM --------------------------------- //
 		this.stateNode = null;
 	}
@@ -80,6 +84,8 @@ export const createWorkInProgress = (
 		// update
 		wip.pendingProps = pendingProps; // 生成双缓冲树时，继承
 		wip.flags = NoFlags;
+		wip.subtreeFlags = NoFlags;
+		wip.deletions = null;
 	}
 	// ---------------------------------- 生成双缓冲树时，继承 --------------------------------- //
 	wip.type = current.type;

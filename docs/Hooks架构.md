@@ -52,3 +52,38 @@ graph LR
   - **对于 `useState` Hook**: `updateQueue` 会指向一个 `UpdateQueue` 对象。这个队列负责管理所有通过 `setState` (或 `dispatch` 函数) 针对这个特定状态发起的更新请求。当组件重新渲染时，React 会处理这个队列中的更新来计算新的 `memoizedState`。
   - **对于 `useEffect` Hook**: 这个属性通常是 `null` 或者不被直接使用来存储更新队列。`useEffect` 的副作用执行逻辑（创建、销毁、依赖比较）更多地依赖于其 `memoizedState` 中存储的 `Effect` 对象以及 FiberNode 上的 `updateQueue` (类型为 `FCUpdateQueue`) 来管理 `Effect` 链表。
 - `next`
+
+### updateQueue的结构
+
+#### 直观的例子
+
+```js
+const [count, setCount] = useState(0);
+setCount(100);
+```
+
+结构：
+
+```js
+hook.memoizedState = 0;
+hook.updateQueue = {
+	shared: {
+		pending: { action: 100 }
+	},
+	dispatch: setCount
+};
+```
+
+#### 概念说明
+
+```ts
+export interface UpdateQueue<State> {
+	shared: {
+		pending: Update<State> | null;
+	};
+	dispatch: Dispatch<State> | null;
+}
+```
+
+- **`dispatch`**: 这个属性会存储 `dispatch` 函数本身（也就是 `useState` 返回的第二个参数，如 `setNum`）。这个函数在创建时就已经绑定了当前的 Fiber 节点和这个 `updateQueue` 实例，所以调用它时，React 知道要为哪个组件的哪个状态更新队列添加任务。
+- **`shared.pending`**: 这是存放**待处理更新**的地方。当您调用 `setNum(101)` 时，React 内部会创建一个 `Update` 对象，并将其赋值给 `pending` 属性。这里的 `shared` 对象设计是为了在 work-in-progress Fiber 树和 current Fiber 树之间共享同一个更新队列。
