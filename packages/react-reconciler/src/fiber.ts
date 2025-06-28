@@ -69,6 +69,8 @@ export class FiberNode {
 	}
 }
 
+// mount: 创建一个新的 FiberNode
+// update: 复用老节点
 export const createWorkInProgress = (
 	current: FiberNode,
 	pendingProps: Props
