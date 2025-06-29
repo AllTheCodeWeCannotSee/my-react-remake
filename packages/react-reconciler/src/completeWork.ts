@@ -12,6 +12,7 @@ import {
 	HostText
 } from './workTags';
 import { Container } from './hostConfig';
+import { updateFiberProps } from 'react-dom/src/SyntheticEvent';
 
 // ---------------------------------- completeWork --------------------------------- //
 export const completeWork = (wip: FiberNode) => {
@@ -24,10 +25,11 @@ export const completeWork = (wip: FiberNode) => {
 		case HostComponent:
 			if (current !== null && wip.stateNode) {
 				// update
+				updateFiberProps(wip.stateNode, newProps);
 			} else {
 				// mount
 				// 1. 构建wip-DOM
-				const instance = createInstance(wip.type);
+				const instance = createInstance(wip.type, newProps);
 				// 2. 将 child-DOM 插入 wip-DOM 中
 				appendAllChildren(instance, wip);
 				wip.stateNode = instance;
@@ -37,7 +39,7 @@ export const completeWork = (wip: FiberNode) => {
 		case HostText:
 			if (current !== null && wip.stateNode) {
 				// update
-				const oldText = current.memoizedProps.content;
+				const oldText = current.memoizedProps?.content;
 				const newText = newProps.content;
 				if (oldText !== newText) {
 					// 新旧文本不同

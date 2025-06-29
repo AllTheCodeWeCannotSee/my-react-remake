@@ -68,6 +68,7 @@ export function renderWithHooks(wip: FiberNode) {
 	// ---------------------------------- 收尾 --------------------------------- //
 	currentlyRenderingFiber = null;
 	workInProgressHook = null;
+	currentHook = null;
 	return children;
 }
 
