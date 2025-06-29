@@ -108,16 +108,18 @@ function ChildReconciler(shouldTrackEffects: boolean) {
 		content: string | number
 	) {
 		// 处理删除的情况
-		if (currentFiber !== null) {
+		while (currentFiber !== null) {
 			// update
 			if (currentFiber.tag === HostText) {
 				// type 相同, 复用, 返回老节点
 				const existing = useFiber(currentFiber, { content });
 				existing.return = returnFiber;
+				deleteRemainingChildren(returnFiber, currentFiber.sibling);
 				return existing;
 			} else {
 				// type 不同, 打上删除标记
 				deleteChild(returnFiber, currentFiber);
+				currentFiber = currentFiber.sibling;
 			}
 		}
 		// 处理 mount 或者是 update时删除后的新建节点

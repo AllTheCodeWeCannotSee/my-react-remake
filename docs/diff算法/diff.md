@@ -81,3 +81,13 @@ graph TD
 
    - 如果循环正常结束（意味着遍历完了所有旧节点都没找到 `key` 匹配的），说明这是一个全新的节点，直接创建新 Fiber。
    - 如果循环是因 `break` 跳出的（`key` 匹配但 `type` 不匹配），同样也需要创建新 Fiber。
+
+### reconcileSingleTextNode
+
+type 相同:
+
+- 复用
+- deleteRemainingChildren
+  type 不同:
+- 打上删除标记
+- 去兄弟节点找找机会
