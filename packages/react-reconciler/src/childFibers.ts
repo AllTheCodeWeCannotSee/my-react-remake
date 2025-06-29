@@ -26,6 +26,8 @@ function ChildReconciler(shouldTrackEffects: boolean) {
 		}
 		return fiber;
 	}
+	// returnFiber.deletions 为空: 1. returnFiber 打上标签 2. childToDelete 入队
+	// returnFiber.deletions 不空: 2. childToDelete 入队
 	function deleteChild(returnFiber: FiberNode, childToDelete: FiberNode) {
 		if (!shouldTrackEffects) {
 			return;
@@ -38,10 +40,25 @@ function ChildReconciler(shouldTrackEffects: boolean) {
 			deletions.push(childToDelete);
 		}
 	}
+	// 将从 currentFirstChild 开始的所有子节点入队到 returnFiber.deletions
+	function deleteRemainingChildren(
+		returnFiber: FiberNode,
+		currentFirstChild: FiberNode | null
+	) {
+		if (!shouldTrackEffects) {
+			return;
+		}
+		let childToDelete = currentFirstChild;
+		while (childToDelete) {
+			deleteChild(returnFiber, childToDelete);
+			childToDelete = childToDelete.sibling;
+		}
+	}
 
-	// ---------------------------------- 处理各种类型的 fibernode --------------------------------- //
-	// 1. 根据elemnet创建fiber
-	// 2. fiber的树形结构
+	// ---------------------------------- reconcile 各种类型的子元素  --------------------------------- //
+	// 单节点指的是更新后是单节点
+	// 1. 根据 elemnet 创建 fiber
+	// 2. fiber 的树形结构
 	function reconcileSingleElement(
 		returnFiber: FiberNode,
 		currentFiber: FiberNode | null,
@@ -49,7 +66,7 @@ function ChildReconciler(shouldTrackEffects: boolean) {
 	) {
 		// 处理删除
 		const key = element.key;
-		work: if (currentFiber !== null) {
+		while (currentFiber !== null) {
 			// update 才会有 delete
 			if (currentFiber.key === key) {
 				// key 相同
@@ -58,21 +75,24 @@ function ChildReconciler(shouldTrackEffects: boolean) {
 						// 1. type 相同, 使用老节点, 更新老节点 props, 返回老节点
 						const existing = useFiber(currentFiber, element.props);
 						existing.return = returnFiber;
+						// ABC -> A, 当确定 A 的 key & type 不变后, 不必再循环 BC
+						deleteRemainingChildren(returnFiber, currentFiber.sibling);
 						return existing;
 					} else {
-						// 2. type 不同: 打上删除标记, 结束 work
-						deleteChild(returnFiber, currentFiber);
-						break work;
+						// 2. type 不同: 将其和兄弟节点打上删除标记, 结束循环
+						deleteRemainingChildren(returnFiber, currentFiber);
+						break;
 					}
 				} else {
 					if (__DEV__) {
 						console.warn('还未实现的react类型', element);
-						break work;
+						break;
 					}
 				}
 			} else {
 				// 3. key 不同: 打上删除标记, 结束 work
 				deleteChild(returnFiber, currentFiber);
+				currentFiber = currentFiber.sibling;
 			}
 		}
 		// mount 与 update的情况2&3: 根据element创建fiber
@@ -105,6 +125,7 @@ function ChildReconciler(shouldTrackEffects: boolean) {
 		fiber.return = returnFiber;
 		return fiber;
 	}
+	function reconcileChildrenArray() {}
 
 	// ---------------------------------- 辅助函数 --------------------------------- //
 
@@ -120,6 +141,7 @@ function ChildReconciler(shouldTrackEffects: boolean) {
 		currentFiber: FiberNode | null,
 		newChild?: ReactElementType
 	) {
+		// 子元素是 ReactElement
 		// updateHostRoot: reconcileChildFibers(hostFiber, currentFiber, <App />)
 		if (typeof newChild === 'object' && newChild !== null) {
 			switch (newChild.$$typeof) {
@@ -134,7 +156,8 @@ function ChildReconciler(shouldTrackEffects: boolean) {
 					break;
 			}
 		}
-		// HostText
+
+		// 子元素是 HostText
 		if (typeof newChild === 'string' || typeof newChild === 'number') {
 			return placeSingleChild(
 				reconcileSingleTextNode(returnFiber, currentFiber, newChild)
