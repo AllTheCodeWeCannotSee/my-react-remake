@@ -4,7 +4,7 @@ import {
 	createTextInstance
 } from 'react-dom/src/hostConfig';
 import { FiberNode } from './fiber';
-import { NoFlags } from './fiberFlags';
+import { NoFlags, Update } from './fiberFlags';
 import {
 	FunctionComponent,
 	HostComponent,
@@ -13,6 +13,7 @@ import {
 } from './workTags';
 import { Container } from './hostConfig';
 
+// ---------------------------------- completeWork --------------------------------- //
 export const completeWork = (wip: FiberNode) => {
 	const newProps = wip.pendingProps;
 	const current = wip.alternate;
@@ -36,6 +37,12 @@ export const completeWork = (wip: FiberNode) => {
 		case HostText:
 			if (current !== null && wip.stateNode) {
 				// update
+				const oldText = current.memoizedProps.content;
+				const newText = newProps.content;
+				if (oldText !== newText) {
+					// 新旧文本不同
+					markUpdate(wip);
+				}
 			} else {
 				const instance = createTextInstance(newProps.content);
 				wip.stateNode = instance;
@@ -53,6 +60,7 @@ export const completeWork = (wip: FiberNode) => {
 	}
 };
 
+// ---------------------------------- 辅助函数 --------------------------------- //
 function bubbleProperties(wip: FiberNode) {
 	let subtreeFlags = NoFlags;
 	let child = wip.child;
@@ -94,4 +102,8 @@ function appendAllChildren(parent: Container, wip: FiberNode) {
 		node.sibling.return = node.return;
 		node = node.sibling;
 	}
+}
+// 给 fiber 打上 Update 标签
+function markUpdate(fiber: FiberNode) {
+	fiber.flags |= Update;
 }

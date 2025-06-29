@@ -67,7 +67,6 @@ function ReactElement(
 	ref: Ref,
 	props: Props
 ): ReactElementType {
-	console.warn('ReactElement', type, key, ref, props);
 	const element = {
 		$$typeof: REACT_ELEMENT_TYPE,
 		type,
