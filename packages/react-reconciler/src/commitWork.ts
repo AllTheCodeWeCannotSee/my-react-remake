@@ -1,6 +1,8 @@
 import {
 	appendChildToContainer,
 	commitUpdate,
+	insertChildToContainer,
+	Instance,
 	removeChild
 } from 'react-dom/src/hostConfig';
 import { FiberNode, FiberRootNode } from './fiber';
@@ -85,8 +87,10 @@ const commitPlacement = (finishedWork: FiberNode) => {
 		console.warn('执行Placement操作', finishedWork);
 	}
 	const hostParent = getHostParent(finishedWork);
+	const sibling = getHostSibling(finishedWork);
+
 	if (hostParent !== null) {
-		appendPlacementNodeIntoContainer(finishedWork, hostParent);
+		insertOrAppendPlacementNodeIntoContainer(finishedWork, hostParent, sibling);
 	}
 };
 
@@ -162,25 +166,85 @@ function getHostParent(fiber: FiberNode): Container | null {
 	return null;
 }
 
+// 找到 fiber 在当前 subtree 中的兄弟节点的真实 DOM。subtree 的根是 Host 类型的节点
+// 例子1：
+// A -> B1
+//	 -> B2
+// B1 会返回 B2 的真实 DOM
+// 例子2:
+// A -> B: B 因为没有兄弟节点了，就返回 null
+function getHostSibling(fiber: FiberNode) {
+	let node: FiberNode = fiber; // 游标
+	findSibling: while (true) {
+		// 如果没有兄弟fiber，就向上找，直到祖先节点有另外一个孩子，就结束循环
+		while (node.sibling === null) {
+			const parent = node.return;
+			if (
+				// 如果祖先节点 1. HostComponent 2.或是 HostRoot 3.或是 root
+				// 意味着当前 subtree 找不到兄弟节点了，结束工作，return 整个 getHostSibling
+				parent === null ||
+				parent.tag === HostComponent ||
+				parent.tag === HostRoot
+			) {
+				return null;
+			}
+			node = parent;
+		}
+		// 运行到此，意味着找到了一个兄弟
+		node.sibling.return = node.return;
+		node = node.sibling;
+
+		// 向下查找，找到这个兄弟节点的第一个真实 DOM
+		while (node.tag !== HostText && node.tag !== HostComponent) {
+			// node 是 Host: 要找的就是它！结束循环
+			// node 非 Host: 如果 node 1.不稳定 2.或没有子节点了。就执行 findSibling 找到兄弟的兄弟
+			// node 非 Host: 如果 node 稳定且有子节点。就继续向下找
+			if ((node.flags & Placement) !== NoFlags) {
+				// 节点不稳定
+				// 优化策略：跳过这整颗子树
+				continue findSibling;
+			}
+			if (node.child === null) {
+				// 没有子节点了
+				continue findSibling;
+			}
+			node.child.return = node;
+			node = node.child;
+		}
+		// 运行到此，说明找到了 Host 类型的兄弟节点
+		// 父节点稳定不一定确保此时的 node 稳定，一定要进行这个判断
+		if ((node.flags & Placement) === NoFlags) {
+			// 节点稳定
+			return node.stateNode;
+		}
+	}
+}
+
 // 将 finishedWork 的真实DOM（存在的话） 或 finishedWork的子节点的真实DOM 连接到 hostParent
-function appendPlacementNodeIntoContainer(
+function insertOrAppendPlacementNodeIntoContainer(
 	finishedWork: FiberNode,
-	hostParent: Container
+	hostParent: Container,
+	before?: Instance
 ) {
 	// 如果 finishedWork 是 Host 类型, 将 finishedWork 的真实 DOM 连接到 hostParent
 	// finishedWork 的真实 DOM 在 completeWork 时完成
 	if (finishedWork.tag === HostComponent || finishedWork.tag === HostText) {
-		appendChildToContainer(hostParent, finishedWork.stateNode);
+		if (before) {
+			// 存在拥有真实 DOM 的 兄弟节点（此时的兄弟指的是真实DOM树中，而不是 fiber 树）
+			insertChildToContainer(finishedWork.stateNode, hostParent, before);
+		} else {
+			appendChildToContainer(hostParent, finishedWork.stateNode);
+		}
 		return;
 	}
 	// 否则，将 finishedWork 所有子节点中的真实 DOM 连接到 hostParent
 	const child = finishedWork.child;
 	if (child !== null) {
-		appendPlacementNodeIntoContainer(child, hostParent);
+		insertOrAppendPlacementNodeIntoContainer(child, hostParent);
 		let sibling = child.sibling;
 
 		while (sibling !== null) {
-			appendPlacementNodeIntoContainer(sibling, hostParent);
+			insertOrAppendPlacementNodeIntoContainer(sibling, hostParent);
 			sibling = sibling.sibling;
 		}
 	}

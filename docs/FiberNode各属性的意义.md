@@ -8,7 +8,7 @@ pendingProps:
 return:
 sibling:
 child:
-index:
+index: diff 算法会用到，Key 的候补, 值为 nextProps.children 数组的下标
 alternate:
 ---------------------------------- 状态 ---------------------------------
 memoizedProps:
