@@ -1,4 +1,4 @@
-import { Props, ReactElementType } from 'shared/ReactTypes';
+import { Key, Props, ReactElementType } from 'shared/ReactTypes';
 import {
 	createFiberFromElement,
 	createWorkInProgress,
@@ -205,6 +205,18 @@ function ChildReconciler(shouldTrackEffects: boolean) {
 
 	// ---------------------------------- 辅助函数 --------------------------------- //
 
+	function getElementKeyToUse(element: any, index?: number): Key {
+		if (
+			// element 是 1.数组 2.HostText
+			Array.isArray(element) ||
+			typeof element === 'string' ||
+			typeof element === 'number'
+		) {
+			return index;
+		}
+		// element 非数组
+		return element.key !== null ? element.key : index;
+	}
 	function useFiber(fiber: FiberNode, pendingProps: Props): FiberNode {
 		const clone = createWorkInProgress(fiber, pendingProps);
 		clone.index = 0;
@@ -221,7 +233,7 @@ function ChildReconciler(shouldTrackEffects: boolean) {
 		element: any
 	): FiberNode | null {
 		// keyToUse = element.key | rerurnFiber.nextProps.children 数组的下标
-		const keyToUse = element.key !== null ? element.key : index;
+		const keyToUse = getElementKeyToUse(element, index);
 		// before: 旧链表中对应 element 的 fiber 节点
 		const before = existingChildren.get(keyToUse);
 		// HostText
