@@ -1,16 +1,24 @@
 import { Dispatch } from 'react/src/currentDispatcher';
 import { Action } from 'shared/ReactTypes';
+import { Lane } from './fiberLanes';
 
 // ---------------------------------- Update --------------------------------- //
 // 触发更新的方式1. ReactDOM.createRoot().render
 // Update = { action: <App />}
 export interface Update<State> {
 	action: Action<State>;
+	lane: Lane;
+	next: Update<any> | null;
 }
 
-export const createUpdate = <State>(action: Action<State>): Update<State> => {
+export const createUpdate = <State>(
+	action: Action<State>,
+	lane: Lane
+): Update<State> => {
 	return {
-		action
+		action,
+		lane,
+		next: null
 	};
 };
 // ---------------------------------- UpdateQueue --------------------------------- //

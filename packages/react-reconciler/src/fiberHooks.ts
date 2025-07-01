@@ -12,11 +12,13 @@ import {
 import { Action } from 'shared/ReactTypes';
 import { scheduleUpdateOnFiber } from './workLoop';
 import { Update } from './fiberFlags';
+import { Lane, NoLane, requestUpdateLane } from './fiberLanes';
 // ---------------------------------- 数据结构 --------------------------------- //
 // 当前在 render 的 fibernode
 let currentlyRenderingFiber: FiberNode | null = null;
 let workInProgressHook: Hook | null = null;
 let currentHook: Hook | null = null;
+
 const { currentDispatcher } = internals;
 
 interface Hook {
@@ -41,10 +43,11 @@ interface Hook {
 //         </div>
 //     );
 // }
-export function renderWithHooks(wip: FiberNode) {
+export function renderWithHooks(wip: FiberNode, lane: Lane) {
 	// ---------------------------------- 处理 Hooks --------------------------------- //
 	// 确定调用 hook 的节点
 	currentlyRenderingFiber = wip;
+
 	wip.memoizedState = null;
 	const current = wip.alternate;
 
@@ -114,9 +117,10 @@ function dispatchSetState<State>(
 	updateQueue: UpdateQueue<State>,
 	action: Action<State>
 ) {
-	const update = createUpdate(action);
+	const lane = requestUpdateLane();
+	const update = createUpdate(action, lane);
 	enqueueUpdate(updateQueue, update);
-	scheduleUpdateOnFiber(fiber);
+	scheduleUpdateOnFiber(fiber, lane);
 }
 
 // 创建空的 Hook, 并连接到链表 fibernode.memoizedState中

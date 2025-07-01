@@ -7,17 +7,27 @@ import {
 	WorkTag
 } from './workTags';
 import { Flags, NoFlags } from './fiberFlags';
+import { Lane, Lanes, NoLane, NoLanes } from './fiberLanes';
 
 // ---------------------------------- 各种节点类型 --------------------------------- //
 export class FiberRootNode {
 	container: Container;
 	current: FiberNode;
 	finishedWork: FiberNode | null;
+
+	// lane 模型
+	pendingLanes: Lanes; // 积累的更新
+	finishedLane: Lane; // 本次的更新
+
 	constructor(container: Container, hostRootFiber: FiberNode) {
 		this.container = container;
 		this.current = hostRootFiber;
 		// this.finishedWork: 双缓冲机制中那个已经“绘制”完成，等待被展示的“后台缓冲区”
 		this.finishedWork = null;
+
+		// lane 模型
+		this.pendingLanes = NoLanes;
+		this.finishedLane = NoLane;
 
 		hostRootFiber.stateNode = this;
 	}
