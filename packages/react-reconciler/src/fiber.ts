@@ -1,8 +1,14 @@
 import { Key, Props, ReactElementType, Ref } from 'shared/ReactTypes';
 import { Container } from './hostConfig';
-import { FunctionComponent, HostComponent, WorkTag } from './workTags';
+import {
+	Fragment,
+	FunctionComponent,
+	HostComponent,
+	WorkTag
+} from './workTags';
 import { Flags, NoFlags } from './fiberFlags';
 
+// ---------------------------------- 各种节点类型 --------------------------------- //
 export class FiberRootNode {
 	container: Container;
 	current: FiberNode;
@@ -23,7 +29,7 @@ export class FiberNode {
 	// babel编译jsx得到的type
 	// <div>: type = "div"
 	type: any;
-	key: Key;
+	key: Key | null;
 	ref: Ref;
 	pendingProps: Props;
 	// ---------------------------------- 树形结构 --------------------------------- //
@@ -69,6 +75,7 @@ export class FiberNode {
 	}
 }
 
+// ---------------------------------- 辅助函数 --------------------------------- //
 // mount: 创建一个新的 FiberNode
 // update: 复用老节点
 export const createWorkInProgress = (
@@ -112,5 +119,14 @@ export function createFiberFromElement(element: ReactElementType): FiberNode {
 	}
 	const fiber = new FiberNode(fiberTag, props, key);
 	fiber.type = type;
+	return fiber;
+}
+
+// elements: [
+//       jsx("div", {}),
+//       jsx("div", {})
+//   	]
+export function createFiberFromFragment(elements: any[], key: Key): FiberNode {
+	const fiber = new FiberNode(Fragment, elements, key);
 	return fiber;
 }

@@ -97,27 +97,23 @@ const commitPlacement = (finishedWork: FiberNode) => {
 // 删除传入的 FiberNode
 function commitDeletion(childToDelete: FiberNode) {
 	console.warn('执行Placement操作', childToDelete);
-	// rootHostNode 最终指向最接近树顶的 HostNode
-	// 也说明了为什么 react 规定 return 必须有一个 HostNode 包裹
-	let rootHostNode: FiberNode | null = null;
+
+	// 收集要移除的、最接近 childToDelete  的宿主节点
+	const rootChildrenToDelete: FiberNode[] = [];
 
 	const onCommitUnmount = (unmountFiber: FiberNode) => {
 		// 作用：除了移除 DOM 节点外，该做的事: useEffect, ref
 		// 像是拆除大楼前进行断水断电
-		// HostComponent: 设置 rootHostNode 为当前节点
-		// HostText: 设置 rootHostNode 为当前节点
+		// HostComponent:
+		// HostText:
 		// FunctionComponent: 返回
 		switch (unmountFiber.tag) {
 			case HostComponent:
-				if (rootHostNode === null) {
-					rootHostNode = unmountFiber;
-				}
+				recordHostChildrenToDelete(rootChildrenToDelete, unmountFiber);
 				// TODO 解绑ref
 				return;
 			case HostText:
-				if (rootHostNode === null) {
-					rootHostNode = unmountFiber;
-				}
+				recordHostChildrenToDelete(rootChildrenToDelete, unmountFiber);
 				return;
 			case FunctionComponent:
 				// TODO useEffect unmount 、解绑refAdd commentMore actions
@@ -128,13 +124,16 @@ function commitDeletion(childToDelete: FiberNode) {
 				}
 		}
 	};
+
 	// 断水断电
 	commitNestedComponent(childToDelete, onCommitUnmount);
 	// 拆掉大楼
-	if (rootHostNode !== null) {
+	if (rootChildrenToDelete.length) {
 		const hostParent = getHostParent(childToDelete);
 		if (hostParent !== null) {
-			removeChild((rootHostNode as FiberNode).stateNode, hostParent);
+			rootChildrenToDelete.forEach((node) => {
+				removeChild(node.stateNode, hostParent);
+			});
 		}
 	}
 	childToDelete.return = null;
@@ -274,5 +273,27 @@ function commitNestedComponent(
 		}
 		node.sibling.return = node.return;
 		node = node.sibling;
+	}
+}
+
+// 收集 unmountFiber 这个子树的最上层的 Host 类型的节点
+function recordHostChildrenToDelete(
+	childToDelete: FiberNode[],
+	unmountFiber: FiberNode
+) {
+	const lastOne = childToDelete[childToDelete.length - 1];
+	if (!lastOne) {
+		// subtree 中第一个 Host 类型的节点
+		childToDelete.push(unmountFiber);
+	} else {
+		let node = lastOne.sibling;
+		while (node !== null) {
+			if (unmountFiber === node) {
+				// unmountFiber 是最上层的 Host 之一
+				childToDelete.push(unmountFiber);
+			}
+			// 已有 unmountFiber 的父节点入队
+			node = node.sibling;
+		}
 	}
 }

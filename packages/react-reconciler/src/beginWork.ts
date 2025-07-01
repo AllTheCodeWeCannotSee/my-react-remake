@@ -3,6 +3,7 @@ import { mountChildFibers, reconcileChildFibers } from './childFibers';
 import { FiberNode } from './fiber';
 import { processUpdateQueue, UpdateQueue } from './updateQueue';
 import {
+	Fragment,
 	FunctionComponent,
 	HostComponent,
 	HostRoot,
@@ -21,6 +22,8 @@ export const beginWork = (wip: FiberNode) => {
 			return null;
 		case FunctionComponent:
 			return updateFunctionComponent(wip);
+		case Fragment:
+			return updateFragment(wip);
 		default:
 			if (__DEV__) {
 				console.warn('beginWork未实现的类型');
@@ -61,6 +64,12 @@ function updateHostComponent(wip: FiberNode) {
 function updateFunctionComponent(wip: FiberNode) {
 	// nextChildren = <span>你好，世界！</span>
 	const nextChildren = renderWithHooks(wip);
+	reconcileChildren(wip, nextChildren);
+	return wip.child;
+}
+
+function updateFragment(wip: FiberNode) {
+	const nextChildren = wip.pendingProps;
 	reconcileChildren(wip, nextChildren);
 	return wip.child;
 }
