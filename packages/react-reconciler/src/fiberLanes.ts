@@ -11,10 +11,12 @@ export const NoLanes = 0b0000;
 
 // ---------------------------------- 辅助函数 --------------------------------- //
 
+// lane 的输入
 export function mergeLanes(laneA: Lane, laneB: Lane) {
 	return laneA | laneB;
 }
 
+// 待完善，得到一个合适的 lane
 export function requestUpdateLane() {
 	return SyncLane;
 }

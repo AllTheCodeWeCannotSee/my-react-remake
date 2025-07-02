@@ -17,7 +17,7 @@ export class FiberRootNode {
 
 	// lane 模型
 	pendingLanes: Lanes; // 积累的更新
-	finishedLane: Lane; // 本次的更新
+	finishedLane: Lane; // 本次的完成渲染的更新的优先级
 
 	constructor(container: Container, hostRootFiber: FiberNode) {
 		this.container = container;

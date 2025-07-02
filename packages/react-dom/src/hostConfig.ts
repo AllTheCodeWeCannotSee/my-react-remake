@@ -64,3 +64,14 @@ export const createTextInstance = (content: string) => {
 export function commitTextUpdate(textInstance: TextInstance, content: string) {
 	textInstance.textContent = content;
 }
+
+// ---------------------------------- 微任务 --------------------------------- //
+
+// 返回一个微任务执行器
+export const scheduleMicroTask =
+	typeof queueMicrotask === 'function'
+		? queueMicrotask
+		: typeof Promise === 'function'
+			? (callback: (...args: any) => void) =>
+					Promise.resolve(null).then(callback)
+			: setTimeout;

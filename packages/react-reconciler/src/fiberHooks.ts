@@ -16,8 +16,12 @@ import { Lane, NoLane, requestUpdateLane } from './fiberLanes';
 // ---------------------------------- 数据结构 --------------------------------- //
 // 当前在 render 的 fibernode
 let currentlyRenderingFiber: FiberNode | null = null;
+// 新树上的
 let workInProgressHook: Hook | null = null;
+// 老树上的
 let currentHook: Hook | null = null;
+// 当前渲染任务的 lane
+let renderLane: Lane = NoLane;
 
 const { currentDispatcher } = internals;
 
@@ -48,6 +52,7 @@ export function renderWithHooks(wip: FiberNode, lane: Lane) {
 	// 确定调用 hook 的节点
 	currentlyRenderingFiber = wip;
 
+	renderLane = lane;
 	wip.memoizedState = null;
 	const current = wip.alternate;
 
@@ -72,6 +77,7 @@ export function renderWithHooks(wip: FiberNode, lane: Lane) {
 	currentlyRenderingFiber = null;
 	workInProgressHook = null;
 	currentHook = null;
+	renderLane = NoLane;
 	return children;
 }
 
@@ -175,8 +181,14 @@ function updateState<State>(): [State, Dispatch<State>] {
 	const queue = hook.updateQueue as UpdateQueue<State>;
 	const pending = queue.shared.pending;
 
+	queue.shared.pending = null;
+
 	if (pending !== null) {
-		const { memoizedState } = processUpdateQueue(hook.memoizedState, pending);
+		const { memoizedState } = processUpdateQueue(
+			hook.memoizedState,
+			pending,
+			renderLane
+		);
 		hook.memoizedState = memoizedState;
 	}
 	return [hook.memoizedState, queue.dispatch as Dispatch<State>];

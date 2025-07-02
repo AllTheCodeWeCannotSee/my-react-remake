@@ -10,18 +10,19 @@ import {
 	HostText
 } from './workTags';
 import { renderWithHooks } from './fiberHooks';
+import { Lane } from './fiberLanes';
 
 // beginWork的工作是处理wip的子节点
-export const beginWork = (wip: FiberNode) => {
+export const beginWork = (wip: FiberNode, renderLane: Lane) => {
 	switch (wip.tag) {
 		case HostRoot:
-			return updateHostRoot(wip);
+			return updateHostRoot(wip, renderLane);
 		case HostComponent:
 			return updateHostComponent(wip);
 		case HostText:
 			return null;
 		case FunctionComponent:
-			return updateFunctionComponent(wip);
+			return updateFunctionComponent(wip, renderLane);
 		case Fragment:
 			return updateFragment(wip);
 		default:
@@ -38,14 +39,14 @@ export const beginWork = (wip: FiberNode) => {
 // 3. 返回 wip.child
 
 // reconcileChildren(wip, <App />)
-function updateHostRoot(wip: FiberNode) {
+function updateHostRoot(wip: FiberNode, renderLane: Lane) {
 	// baseState = null | <App />
 	const baseState = wip.memoizedState;
 	const updateQueue = wip.updateQueue as UpdateQueue<Element>;
 	// pending = { action: <App />}
 	const pending = updateQueue.shared.pending;
 	updateQueue.shared.pending = null;
-	const { memoizedState } = processUpdateQueue(baseState, pending);
+	const { memoizedState } = processUpdateQueue(baseState, pending, renderLane);
 	// wip.memoizedState = <App />
 	wip.memoizedState = memoizedState;
 	// nextChildren = <App />
@@ -61,9 +62,9 @@ function updateHostComponent(wip: FiberNode) {
 	reconcileChildren(wip, nextChildren);
 	return wip.child;
 }
-function updateFunctionComponent(wip: FiberNode) {
+function updateFunctionComponent(wip: FiberNode, renderLane: Lane) {
 	// nextChildren = <span>你好，世界！</span>
-	const nextChildren = renderWithHooks(wip);
+	const nextChildren = renderWithHooks(wip, renderLane);
 	reconcileChildren(wip, nextChildren);
 	return wip.child;
 }
