@@ -11,8 +11,9 @@ import {
 } from './updateQueue';
 import { Action } from 'shared/ReactTypes';
 import { scheduleUpdateOnFiber } from './workLoop';
-import { Update } from './fiberFlags';
+import { Flags, PassiveEffect, Update } from './fiberFlags';
 import { Lane, NoLane, requestUpdateLane } from './fiberLanes';
+import { HookHasEffect, Passive } from './hookEffectTags';
 // ---------------------------------- 数据结构 --------------------------------- //
 // 当前在 render 的 fibernode
 let currentlyRenderingFiber: FiberNode | null = null;
@@ -35,7 +36,22 @@ interface Hook {
 	updateQueue: unknown;
 	next: Hook | null;
 }
-// ---------------------------------- 函数 --------------------------------- //
+
+// effect
+type EffectCallback = () => void;
+type EffectDeps = any[] | null;
+export interface Effect {
+	tag: Flags;
+	create: EffectCallback | void;
+	destroy: EffectCallback | void;
+	deps: EffectDeps;
+	next: Effect | null;
+}
+export interface FCUpdateQueue<State> extends UpdateQueue<State> {
+	lastEffect: Effect | null;
+}
+// ---------------------------------- 主体 --------------------------------- //
+
 // function Greeting(props: { name: string }) {
 //     return <span>你好，{props.name}！</span>;
 // }
@@ -48,12 +64,13 @@ interface Hook {
 //     );
 // }
 export function renderWithHooks(wip: FiberNode, lane: Lane) {
-	// ---------------------------------- 处理 Hooks --------------------------------- //
+	// ............... 处理 Hooks  ...............
 	// 确定调用 hook 的节点
 	currentlyRenderingFiber = wip;
 
 	renderLane = lane;
 	wip.memoizedState = null;
+	wip.updateQueue = null;
 	const current = wip.alternate;
 
 	if (current !== null) {
@@ -64,7 +81,7 @@ export function renderWithHooks(wip: FiberNode, lane: Lane) {
 		currentDispatcher.current = HooksDispatcherOnMount;
 	}
 
-	// ---------------------------------- 处理 Props --------------------------------- //
+	// ............... 处理 Props ...............
 	// wip.type: 这个 type 属性对于函数式组件来说，就是那个组件函数本身
 	// Component 是 Greeting()
 	const Component = wip.type;
@@ -73,18 +90,102 @@ export function renderWithHooks(wip: FiberNode, lane: Lane) {
 	// children = <span>你好，世界！</span>
 	const children = Component(props);
 
-	// ---------------------------------- 收尾 --------------------------------- //
+	// ............... 收尾 ...............
 	currentlyRenderingFiber = null;
 	workInProgressHook = null;
 	currentHook = null;
 	renderLane = NoLane;
 	return children;
 }
-
-// ---------------------------------- mount --------------------------------- //
+// ............... mount ...............
+// 推给数据层的
 const HooksDispatcherOnMount: Dispatcher = {
-	useState: mountState
+	useState: mountState,
+	useEffect: mountEffect
 };
+// 创建空的 Hook, 并连接到链表 fibernode.memoizedState中
+function mountWorkInProgresHook(): Hook {
+	// 创建新的 Hook
+	const hook: Hook = {
+		memoizedState: null,
+		updateQueue: null,
+		next: null
+	};
+	if (workInProgressHook === null) {
+		// 是 wip 的第一个 Hook
+		if (currentlyRenderingFiber === null) {
+			// 不在函数组件内被调用
+			throw new Error('请在函数组件内调用hook');
+		} else {
+			// 作为memoizedState的头节点
+			workInProgressHook = hook;
+			currentlyRenderingFiber.memoizedState = workInProgressHook;
+		}
+	} else {
+		// 非 wip 的第一个 Hook
+		// memoizedState -> old
+		// memoizedState -> old -> new
+		workInProgressHook.next = hook;
+		workInProgressHook = hook;
+	}
+	return workInProgressHook;
+}
+
+// ............... update ...............
+
+// 推给数据层的
+const HooksDispatcherOnUpdate: Dispatcher = {
+	useState: updateState,
+	useEffect: updateEffect
+};
+
+// 根据老 Hook 创建新 Hook, 尾插到 fiber.memoizedState
+// workInProgressHook, currentHook 分别是是新、老树上的尾指针
+function updateWorkInProgresHook(): Hook {
+	// 1. 指向上一次成功渲染（current tree）的 Hook 链表中的当前 Hook
+	let nextCurrentHook: Hook | null;
+	if (currentHook === null) {
+		// 是本组件的第一个 Hook
+		const current = currentlyRenderingFiber?.alternate;
+		nextCurrentHook = current?.memoizedState;
+	} else {
+		// 非本组件的第一个 Hook
+		nextCurrentHook = currentHook.next;
+	}
+
+	if (nextCurrentHook === null) {
+		// 违规，情况1 (mount/update u1 u2 u3 / update u1 u2 u3 u4):
+		throw new Error(
+			`组件${currentlyRenderingFiber?.type}本次执行时的Hook比上次执行时多`
+		);
+	}
+	currentHook = nextCurrentHook as Hook;
+	// 2. 不修改 currentHook, 而是创建新的
+	const newHook: Hook = {
+		memoizedState: currentHook.memoizedState,
+		updateQueue: currentHook.updateQueue,
+		next: null
+	};
+	// 3. 连接到 fiber.memoizedState
+	if (workInProgressHook === null) {
+		// 是 wip tree 的第一个 Hook
+		if (currentlyRenderingFiber === null) {
+			throw new Error('请在函数组件内调用hook');
+		} else {
+			workInProgressHook = newHook;
+			currentlyRenderingFiber.memoizedState = workInProgressHook;
+		}
+	} else {
+		// 非 wip tree 的第一个 Hook
+		workInProgressHook.next = newHook;
+		workInProgressHook = newHook;
+	}
+	return workInProgressHook;
+}
+
+// ---------------------------------- useState --------------------------------- //
+
+// ............... mount ...............
 
 // const [count, setCount] = useState(0)
 // 输入：0
@@ -129,42 +230,9 @@ function dispatchSetState<State>(
 	scheduleUpdateOnFiber(fiber, lane);
 }
 
-// 创建空的 Hook, 并连接到链表 fibernode.memoizedState中
-function mountWorkInProgresHook(): Hook {
-	// 创建新的 Hook
-	const hook: Hook = {
-		memoizedState: null,
-		updateQueue: null,
-		next: null
-	};
-	if (workInProgressHook === null) {
-		// 是 wip 的第一个 Hook
-		if (currentlyRenderingFiber === null) {
-			// 不在函数组件内被调用
-			throw new Error('请在函数组件内调用hook');
-		} else {
-			// 作为memoizedState的头节点
-			workInProgressHook = hook;
-			currentlyRenderingFiber.memoizedState = workInProgressHook;
-		}
-	} else {
-		// 非 wip 的第一个 Hook
-		// memoizedState -> old
-		// memoizedState -> old -> new
-		workInProgressHook.next = hook;
-		workInProgressHook = hook;
-	}
-	return workInProgressHook;
-}
+// ............ update ............
 
-// ---------------------------------- update --------------------------------- //
-const HooksDispatcherOnUpdate: Dispatcher = {
-	useState: updateState
-};
-
-/**
- * @description 得到 useState 的返回值（update 阶段）
- */
+// 得到 useState 的返回值（update 阶段）
 function updateState<State>(): [State, Dispatch<State>] {
 	// 例子：
 	// const [count, setCount] = useState(0)
@@ -194,46 +262,119 @@ function updateState<State>(): [State, Dispatch<State>] {
 	return [hook.memoizedState, queue.dispatch as Dispatch<State>];
 }
 
-/**
- * @description 确定 hook 在链表中的位置
- */
-function updateWorkInProgresHook(): Hook {
-	// 1. 指向上一次成功渲染（current tree）的 Hook 链表中的当前 Hook
-	let nextCurrentHook: Hook | null;
-	if (currentHook === null) {
-		// 是本组件的第一个 Hook
-		const current = currentlyRenderingFiber?.alternate;
-		nextCurrentHook = current?.memoizedState;
-	} else {
-		// 非本组件的第一个 Hook
-		nextCurrentHook = currentHook.next;
-	}
+// ---------------------------------- useEffect --------------------------------- //
 
-	if (nextCurrentHook === null) {
-		// 违规，情况1 (mount/update u1 u2 u3 / update u1 u2 u3 u4):
-		throw new Error(
-			`组件${currentlyRenderingFiber?.type}本次执行时的Hook比上次执行时多`
-		);
-	}
-	currentHook = nextCurrentHook as Hook;
-	// 2. 不修改 currentHook, 而是创建新的
-	const newHook: Hook = {
-		memoizedState: currentHook.memoizedState,
-		updateQueue: currentHook.updateQueue,
+// ............... mount ...............
+function mountEffect(create: EffectCallback | void, deps: EffectDeps | void) {
+	const nextDeps = deps === undefined ? null : deps;
+	// 1. 在链表上创建一个新 Hook
+	const hook = mountWorkInProgresHook();
+	// 2. 给当前 fibernode 打上标记 PassiveEffect
+	(currentlyRenderingFiber as FiberNode).flags |= PassiveEffect;
+	// 3. 创建 Effect 对象,将其链接到 fibernode.updateQueue.lastEffect, 将其放到 hook.memoizedState
+	hook.memoizedState = pushEffect(
+		Passive | HookHasEffect,
+		create,
+		undefined,
+		nextDeps
+	);
+}
+
+function pushEffect(
+	hookFlags: Flags,
+	create: EffectCallback | void,
+	destroy: EffectCallback | void,
+	deps: EffectDeps
+): Effect {
+	// 1. 创建 Effect
+	const effect: Effect = {
+		tag: hookFlags,
+		create,
+		destroy,
+		deps,
 		next: null
 	};
-	if (workInProgressHook === null) {
-		// 是 wip tree 的第一个 Hook
-		if (currentlyRenderingFiber === null) {
-			throw new Error('请在函数组件内调用hook');
-		} else {
-			workInProgressHook = newHook;
-			currentlyRenderingFiber.memoizedState = workInProgressHook;
-		}
+	// 2. Effect 链接到 fibernode.updateQueue.lastEffect
+	const fiber = currentlyRenderingFiber as FiberNode;
+	const updateQueue = fiber.updateQueue as FCUpdateQueue<any>;
+	if (updateQueue === null) {
+		// fibernode 没有 updateQueue
+		const updateQueue = createFCUpdateQueue();
+		fiber.updateQueue = updateQueue;
+		effect.next = effect; // 循环链表，自己指向自己
+		updateQueue.lastEffect = effect;
 	} else {
-		// 非 wip tree 的第一个 Hook
-		workInProgressHook.next = newHook;
-		workInProgressHook = newHook;
+		// fibernode 有 updateQueue
+		const lastEffect = updateQueue.lastEffect;
+		if (lastEffect === null) {
+			// updateQueue 不存在 Effect
+			effect.next = effect; // 循环链表，自己指向自己
+			updateQueue.lastEffect = effect;
+		} else {
+			// updateQueue 存在 Effect
+			// ...
+			// lastEffect = B -> A -> B
+			// lastEffect = C -> B -> A -> C
+			// ...
+
+			const firstEffect = lastEffect.next; // firstEffect = A
+			// B -> C
+			lastEffect.next = effect;
+			// C -> A
+			effect.next = firstEffect;
+			// lastEffect = C
+			updateQueue.lastEffect = effect;
+		}
 	}
-	return workInProgressHook;
+	return effect;
+}
+
+function createFCUpdateQueue<State>() {
+	const updateQueue = createUpdateQueue<State>() as FCUpdateQueue<State>;
+	updateQueue.lastEffect = null;
+	return updateQueue;
+}
+// ............ update ............
+// 创建新 Hooks，比较依赖项
+function updateEffect(create: EffectCallback | void, deps: EffectDeps | void) {
+	const nextDeps = deps === undefined ? null : deps;
+	let destroy: EffectCallback | void;
+	// 1. 老数据创建新 Hook, 并连接到 fiber.memoizedState 链表上
+	const hook = updateWorkInProgresHook();
+
+	if (currentHook !== null) {
+		const prevEffect = currentHook.memoizedState as Effect;
+		destroy = prevEffect.destroy;
+
+		if (nextDeps !== null) {
+			const prevDeps = prevEffect.deps;
+			if (areHookInputsEqual(nextDeps, prevDeps)) {
+				// 依赖项未变：创建一个不带 HookHasEffect 标记的新 Effect
+				hook.memoizedState = pushEffect(Passive, create, destroy, nextDeps);
+				return;
+			}
+		}
+		// 依赖项改变（或未提供）
+		(currentlyRenderingFiber as FiberNode).flags |= PassiveEffect;
+		hook.memoizedState = pushEffect(
+			Passive | HookHasEffect,
+			create,
+			destroy,
+			nextDeps
+		);
+	}
+}
+
+// 浅比较
+function areHookInputsEqual(nextDeps: EffectDeps, prevDeps: EffectDeps) {
+	if (prevDeps === null || nextDeps === null) {
+		return false;
+	}
+	for (let i = 0; i < prevDeps.length && i < nextDeps.length; i++) {
+		if (Object.is(prevDeps[i], nextDeps[i])) {
+			continue;
+		}
+		return false;
+	}
+	return true;
 }
