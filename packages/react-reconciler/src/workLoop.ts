@@ -60,6 +60,7 @@ function ensureRootIsScheduled(root: FiberRootNode) {
 			console.log('在微任务中调度，优先级：', updateLane);
 		}
 		// 将同步 render 任务放入队列
+		// [performSyncWorkOnRoot, performSyncWorkOnRoot, performSyncWorkOnRoot]
 		scheduleSyncCallback(performSyncWorkOnRoot.bind(null, root, updateLane));
 		// 在微任务中执行同步 render
 		scheduleMicroTask(flushSyncCallbacks);
