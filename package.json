@@ -21,7 +21,7 @@
 		"@rollup/plugin-commonjs": "^28.0.3",
 		"@types/react": "^18.0.24",
 		"@types/react-dom": "^18.0.8",
-		"@types/scheduler": "^0.26.0",
+		"@types/scheduler": "^0.16.8",
 		"@typescript-eslint/eslint-plugin": "^8.32.0",
 		"@typescript-eslint/parser": "^8.32.0",
 		"@typescript-eslint/utils": "^8.32.0",
@@ -42,6 +42,6 @@
 	},
 	"dependencies": {
 		"@rollup/plugin-replace": "^6.0.2",
-		"scheduler": "^0.26.0"
+		"scheduler": "^0.23.2"
 	}
 }
