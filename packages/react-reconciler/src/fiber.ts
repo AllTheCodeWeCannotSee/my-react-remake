@@ -8,26 +8,35 @@ import {
 } from './workTags';
 import { Flags, NoFlags } from './fiberFlags';
 import { Lane, Lanes, NoLane, NoLanes } from './fiberLanes';
+import { Effect } from './fiberHooks';
+
+export interface PendingPassiveEffects {
+	unmount: Effect[];
+	update: Effect[];
+}
 
 // ---------------------------------- 各种节点类型 --------------------------------- //
 export class FiberRootNode {
 	container: Container;
+	// 缓冲树模型
 	current: FiberNode;
-	finishedWork: FiberNode | null;
-
+	finishedWork: FiberNode | null; // 双缓冲机制中那个已经“绘制”完成，等待被展示的“后台缓冲区”
 	// lane 模型
 	pendingLanes: Lanes; // 积累的更新
 	finishedLane: Lane; // 本次的完成渲染的更新的优先级
+	// 处理useEffect
+	pendingPassiveEffects: PendingPassiveEffects;
 
 	constructor(container: Container, hostRootFiber: FiberNode) {
 		this.container = container;
 		this.current = hostRootFiber;
-		// this.finishedWork: 双缓冲机制中那个已经“绘制”完成，等待被展示的“后台缓冲区”
 		this.finishedWork = null;
-
-		// lane 模型
 		this.pendingLanes = NoLanes;
 		this.finishedLane = NoLane;
+		this.pendingPassiveEffects = {
+			unmount: [],
+			update: []
+		};
 
 		hostRootFiber.stateNode = this;
 	}
