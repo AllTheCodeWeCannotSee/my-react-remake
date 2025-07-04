@@ -1,7 +1,8 @@
 import {
 	appendInitialChild,
 	createInstance,
-	createTextInstance
+	createTextInstance,
+	Instance
 } from 'react-dom/src/hostConfig';
 import { FiberNode } from './fiber';
 import { NoFlags, Update } from './fiberFlags';
@@ -86,7 +87,7 @@ function bubbleProperties(wip: FiberNode) {
  * @param wip 该DOM元素对应的fiber-node
  */
 // 和commitWork流程类似，先向下遍历找到Host，处理Host，再向上遍历兄弟节点/父节点
-function appendAllChildren(parent: Container, wip: FiberNode) {
+function appendAllChildren(parent: Container | Instance, wip: FiberNode) {
 	let node = wip.child;
 	while (node !== null) {
 		if (node.tag === HostComponent || node.tag === HostText) {
