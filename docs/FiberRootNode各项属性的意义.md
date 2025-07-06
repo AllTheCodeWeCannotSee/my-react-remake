@@ -6,3 +6,8 @@ pendingPassiveEffects:
 - update: 收集所有需要执行创建（create）函数的 useEffect
   - 组件首次挂载
   - useEffect 的依赖项发生了变化
+
+---------------------------------- 并发 ---------------------------------
+
+callbackNode: 见《callbackNode的数据结构》
+callbackPriority: 当前执行任务的优先级

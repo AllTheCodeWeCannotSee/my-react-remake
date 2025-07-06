@@ -1,4 +1,10 @@
 import { Container } from 'hostConfig';
+import {
+	unstable_ImmediatePriority,
+	unstable_NormalPriority,
+	unstable_runWithPriority,
+	unstable_UserBlockingPriority
+} from 'scheduler';
 import { Props } from 'shared/ReactTypes';
 
 // ---------------------------------- 数据结构 --------------------------------- //
@@ -34,6 +40,7 @@ interface SyntheticEvent extends Event {
 	__stopPropagation: boolean;
 }
 
+// ---------------------------------- 主体 --------------------------------- //
 // 初始化事件监听的入口，所有该类型的事件（比如所有的点击事件）都会先被这个根容器上的监听器捕获
 // container: DOM 根节点
 // eventType: 事件类型
@@ -50,7 +57,13 @@ export function initEvent(container: Container, eventType: string) {
 		dispatchEvent(container, eventType, e);
 	});
 }
+// 把一个 React 元素（FiberNode）的 props 对象存储到它对应的真实 DOM 节点的 __props 属性
+export function updateFiberProps(node: DOMElement, props: Props) {
+	node[elementPropsKey] = props;
+}
 
+// ---------------------------------- 辅助函数 --------------------------------- //
+// 点击后执行
 function dispatchEvent(container: Container, eventType: string, e: Event) {
 	const targetElement = e.target;
 	if (targetElement === null) {
@@ -150,14 +163,26 @@ function triggerEventFlow(paths: EventCallback[], se: SyntheticEvent) {
 	for (let i = 0; i < paths.length; i++) {
 		// callback = () => { console.log('已点击！');
 		const callback = paths[i];
-		callback.call(null, se);
+		// callback执行 + 创建优先级上下文
+		unstable_runWithPriority(eventTypeToSchdulerPriority(se.type), () => {
+			callback.call(null, se);
+		});
 		if (se.__stopPropagation) {
 			break;
 		}
 	}
 }
 
-// 把一个 React 元素（FiberNode）的 props 对象存储到它对应的真实 DOM 节点的 __props 属性
-export function updateFiberProps(node: DOMElement, props: Props) {
-	node[elementPropsKey] = props;
+// 用户事件 -> scheduler优先级
+function eventTypeToSchdulerPriority(eventType: string) {
+	switch (eventType) {
+		case 'click':
+		case 'keydown':
+		case 'keyup':
+			return unstable_ImmediatePriority;
+		case 'scroll':
+			return unstable_UserBlockingPriority;
+		default:
+			return unstable_NormalPriority;
+	}
 }

@@ -7,11 +7,12 @@ import {
 	createUpdateQueue,
 	enqueueUpdate,
 	processUpdateQueue,
+	Update,
 	UpdateQueue
 } from './updateQueue';
 import { Action } from 'shared/ReactTypes';
 import { scheduleUpdateOnFiber } from './workLoop';
-import { Flags, PassiveEffect, Update } from './fiberFlags';
+import { Flags, PassiveEffect } from './fiberFlags';
 import { Lane, NoLane, requestUpdateLane } from './fiberLanes';
 import { HookHasEffect, Passive } from './hookEffectTags';
 // ---------------------------------- 数据结构 --------------------------------- //
@@ -35,6 +36,9 @@ interface Hook {
 	memoizedState: any;
 	updateQueue: unknown;
 	next: Hook | null;
+	// 并发
+	baseState: any;
+	baseQueue: Update<any> | null;
 }
 
 // effect
@@ -109,7 +113,9 @@ function mountWorkInProgresHook(): Hook {
 	const hook: Hook = {
 		memoizedState: null,
 		updateQueue: null,
-		next: null
+		next: null,
+		baseQueue: null,
+		baseState: null
 	};
 	if (workInProgressHook === null) {
 		// 是 wip 的第一个 Hook
@@ -164,7 +170,9 @@ function updateWorkInProgresHook(): Hook {
 	const newHook: Hook = {
 		memoizedState: currentHook.memoizedState,
 		updateQueue: currentHook.updateQueue,
-		next: null
+		next: null,
+		baseQueue: currentHook.baseQueue,
+		baseState: currentHook.baseState
 	};
 	// 3. 连接到 fiber.memoizedState
 	if (workInProgressHook === null) {
@@ -247,17 +255,42 @@ function updateState<State>(): [State, Dispatch<State>] {
 	// }
 	const hook = updateWorkInProgresHook();
 	const queue = hook.updateQueue as UpdateQueue<State>;
+
+	const baseState = hook.baseState;
+	const current = currentHook as Hook;
+	let baseQueue = current.baseQueue;
+
 	const pending = queue.shared.pending;
 
 	queue.shared.pending = null;
 
 	if (pending !== null) {
-		const { memoizedState } = processUpdateQueue(
-			hook.memoizedState,
-			pending,
-			renderLane
-		);
-		hook.memoizedState = memoizedState;
+		if (baseQueue !== null) {
+			// baseQueue b2 -> b0 -> b1 -> b2
+			// pendingQueue p2 -> p0 -> p1 -> p2
+			// b0
+			const baseFirst = baseQueue.next;
+			// p0
+			const pendingFirst = pending.next;
+			// b2 -> p0
+			baseQueue.next = pendingFirst;
+			// p2 -> b0
+			pending.next = baseFirst;
+			// p2 -> b0 -> b1 -> b2 -> p0 -> p1 -> p2
+		}
+		baseQueue = pending; // baseQueue = p2
+		current.baseQueue = pending;
+		queue.shared.pending = null;
+		if (baseQueue !== null) {
+			const {
+				memoizedState,
+				baseQueue: newBaseQueue,
+				baseState: newBaseState
+			} = processUpdateQueue(baseState, baseQueue, renderLane);
+			hook.memoizedState = memoizedState;
+			hook.baseState = newBaseState;
+			hook.baseQueue = newBaseQueue;
+		}
 	}
 	return [hook.memoizedState, queue.dispatch as Dispatch<State>];
 }

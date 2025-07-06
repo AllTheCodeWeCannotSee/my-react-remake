@@ -17,6 +17,7 @@ import { MutationMask, NoFlags, PassiveMask } from './fiberFlags';
 import {
 	getHighestPriorityLane,
 	Lane,
+	lanesToSchedulerPriority,
 	markRootFinished,
 	mergeLanes,
 	NoLane,
@@ -27,12 +28,17 @@ import { HostRoot } from './workTags';
 import { HookHasEffect, Passive } from './hookEffectTags';
 import {
 	unstable_scheduleCallback as scheduleCallback,
-	unstable_NormalPriority as NormalPriority
+	unstable_NormalPriority as NormalPriority,
+	unstable_cancelCallback,
+	unstable_shouldYield
 } from 'scheduler';
 
 let workInProgress: FiberNode | null = null;
 let wipRootRenderLane: Lane = NoLane; // 此时此刻，正在渲染的优先级
 let rootDoesHasPassiveEffects: boolean = false; // 锁，具体见《rootDoesHasPassiveEffects的作用.md》
+
+const RootInComplete = 1; // 渲染中断
+const RootCompleted = 2; // 渲染完成
 
 export function scheduleUpdateOnFiber(fiber: FiberNode, lane: Lane) {
 	const root = markUpdateFromFiberToRoot(fiber);
@@ -64,32 +70,62 @@ function markRootUpdated(root: FiberRootNode, lane: Lane) {
 // schedule阶段入口
 // 获取最高优先级的更新，并调度执行
 function ensureRootIsScheduled(root: FiberRootNode) {
-	// 找到最高优先级的 lane
+	// 最高优先级的 lane
 	const updateLane = getHighestPriorityLane(root.pendingLanes);
-	// lane = NoLane, 没有更新, 结束调度
+	// 已经提交给 Scheduler 的那个任务
+	const existingCallback = root.callbackNode;
+	// 1. 没有更新 -> 取消旧任务，返回
 	if (updateLane === NoLane) {
+		if (existingCallback !== null) {
+			unstable_cancelCallback(existingCallback);
+		}
+		root.callbackNode = null;
+		root.callbackPriority = NoLane;
 		return;
 	}
+
+	const curPriority = updateLane;
+	const prevPriority = root.callbackPriority;
+	// 2. 新任务的优先级 === 正在处理的任务的优先级: 计划不变，结束 schedule
+	if (curPriority === prevPriority) {
+		return;
+	}
+
+	// 3. 新任务的优先级 !== 正在处理的任务的优先级 -> 计划有变，
+	// 3.1 取消旧调度
+	if (existingCallback !== null) {
+		unstable_cancelCallback(existingCallback);
+	}
+	// 3.2 开启新调度
+	let newCallbackNode = null;
 	if (updateLane === SyncLane) {
-		// lane = 同步优先级, 用微任务调度
+		// 同步优先级 -> 用微任务调度
 		if (__DEV__) {
 			console.log('在微任务中调度，优先级：', updateLane);
 		}
-		// 将同步 render 任务放入队列
+		// 将同步任务放入数组
 		// [performSyncWorkOnRoot, performSyncWorkOnRoot, performSyncWorkOnRoot]
-		scheduleSyncCallback(performSyncWorkOnRoot.bind(null, root, updateLane));
-		// 在微任务中执行同步 render
+		scheduleSyncCallback(performSyncWorkOnRoot.bind(null, root));
+		// 在微任务中执行同步任务
 		scheduleMicroTask(flushSyncCallbacks);
 	} else {
-		// TODO: 其他优先级 用宏任务调度
+		// 其他优先级 -> 用宏任务调度
+		const schedulerPriority = lanesToSchedulerPriority(updateLane);
+		// 将并发任务放入队列
+		newCallbackNode = scheduleCallback(
+			schedulerPriority,
+			performConcurrentWorkOnRoot.bind(null, root)
+		);
 	}
+	root.callbackNode = newCallbackNode;
+	root.callbackPriority = curPriority;
 }
 
-// ---------------------------------- render阶段 --------------------------------- //
+// ---------------------------------- render 阶段 --------------------------------- //
 
-// 之前的 renderRoot()
-function performSyncWorkOnRoot(root: FiberRootNode, lane: Lane) {
-	// lane: 打算要进行 render 的 ( SyncLane 类型的)
+// 同步更新的入口
+// 一个渲染整棵树的任务
+function performSyncWorkOnRoot(root: FiberRootNode) {
 	// nextLane: 此时此刻根上最高优先级的
 	const nextLane = getHighestPriorityLane(root.pendingLanes);
 
@@ -100,15 +136,95 @@ function performSyncWorkOnRoot(root: FiberRootNode, lane: Lane) {
 		return;
 	}
 
-	if (__DEV__) {
-		console.warn('render阶段开始');
+	// 执行同步的 renderRoot，正常情况下 exitStatus 的结果必是 RootCompleted
+	const exitStatus = renderRoot(root, nextLane, false);
+	if (exitStatus === RootCompleted) {
+		// 首次给 root.finishedWork 赋值，其为 commitWork 的主角
+		const finishedWork = root.current.alternate;
+		root.finishedWork = finishedWork;
+		root.finishedLane = nextLane;
+		// 重置当前 render 的 lane
+		wipRootRenderLane = NoLane;
+		commitRoot(root);
+	} else if (__DEV__) {
+		console.error('还未实现的同步更新结束状态');
+	}
+}
+
+// 并发更新的入口
+function performConcurrentWorkOnRoot(
+	root: FiberRootNode,
+	didTimeout: boolean //由 Scheduler 传入，告知任务是否已超时
+): any {
+	const curCallback = root.callbackNode;
+	// 清理 useEffect
+	// 这次清理副作用，真的有活干吗？
+	const didFlushPassiveEffect = flushPassiveEffects(root.pendingPassiveEffects);
+	if (didFlushPassiveEffect) {
+		// 真的处理 Effect 了！
+		if (root.callbackNode !== curCallback) {
+			// Effect 导致更新，更新导致 root.callbackNode 发生变化 -> 抛弃现在的任务
+			return null;
+		}
+	}
+	// 本次更新的任务
+	const lane = getHighestPriorityLane(root.pendingLanes);
+	const curCallbackNode = root.callbackNode;
+	if (lane === NoLane) {
+		return;
 	}
 
-	// 生成新的缓冲树，设置当前渲染任务的优先级
-	prepareFreshStack(root, lane);
-	while (true) {
+	// 兜底同步任务
+	// 即便不是同步任务，等待时间久了，当作同步任务
+	const needSync = lane === SyncLane || didTimeout;
+	// needSync === true -> 同步 render
+	// needSync === false -> 并发 render
+	const exitStatus = renderRoot(root, lane, !needSync);
+	// 干完一件事，抬头看路
+	// 1. 看看有没有更高优先级的
+	// 2. 看看有没有没打断的
+	ensureRootIsScheduled(root);
+
+	// 任务完成 -> commit 阶段
+	// 任务中断 -> 继续执行
+	if (exitStatus === RootInComplete) {
+		// render 被中断过
+		if (root.callbackNode !== curCallbackNode) {
+			// 优先级不足，返回
+			return null;
+		}
+		// return 的原因：通知 Scheduler 这个任务完成后，下一步的任务
+		// 此时，整棵 Fiber 树的协调工作只完成了一部分，workInProgress 指针还指向着下一个需要处理的节点。工作不能就此丢弃。
+		return performConcurrentWorkOnRoot.bind(null, root);
+	}
+	if (exitStatus === RootCompleted) {
+		// render 完成
+		const finishedWork = root.current.alternate;
+		root.finishedWork = finishedWork;
+		root.finishedLane = lane;
+		commitRoot(root);
+	} else if (__DEV__) {
+		console.error('还未实现的并发更新结束状态');
+	}
+}
+
+// 根据 shouldTimeSlice 决定是同步还是并发 workLoop
+// 同步：完成整个 render，形成一整个 fiber tree
+// 并发：建树建到时间片结束，返回 RootInComplete
+function renderRoot(root: FiberRootNode, lane: Lane, shouldTimeSlice: boolean) {
+	if (__DEV__) {
+		console.log(`开始${shouldTimeSlice ? '并发' : '同步'}更新`, root);
+	}
+	if (wipRootRenderLane !== lane) {
+		// 1. 首次渲染
+		// 2. 优先级更高的更新到来 -> 丢弃 wip 树
+		// 3. 上一个任务完成
+		prepareFreshStack(root, lane);
+	}
+	// [错误恢复机制]
+	do {
 		try {
-			workLoop();
+			shouldTimeSlice ? workLoopConcurrent() : workLoopSync();
 			break;
 		} catch (e) {
 			if (__DEV__) {
@@ -116,14 +232,17 @@ function performSyncWorkOnRoot(root: FiberRootNode, lane: Lane) {
 			}
 			workInProgress = null;
 		}
+	} while (true);
+	// 如果渲染中断
+	if (shouldTimeSlice && workInProgress !== null) {
+		return RootInComplete;
 	}
-	// 切换缓冲树
-	const finishedWork = root.current.alternate;
-	root.finishedWork = finishedWork;
-	root.finishedLane = lane;
-	// 重置当前 render 的 lane
-	wipRootRenderLane = NoLane;
-	commitRoot(root);
+	// 错误：未中断，任务也没结束
+	if (!shouldTimeSlice && workInProgress !== null && __DEV__) {
+		console.error(`render阶段结束时wip不应该不是null`);
+	}
+	// 渲染完成
+	return RootCompleted;
 }
 
 // 生成新缓冲树, wip赋值为 hostRootFiber, 设置正在渲染的任务的优先级
@@ -132,12 +251,25 @@ function prepareFreshStack(root: FiberRootNode, lane: Lane) {
 	wipRootRenderLane = lane;
 }
 
-function workLoop() {
+// 并发 workLoop
+function workLoopConcurrent() {
+	while (workInProgress !== null && !unstable_shouldYield()) {
+		performUnitOfWork(workInProgress);
+	}
+}
+// 同步 workLoop
+function workLoopSync() {
 	while (workInProgress !== null) {
 		performUnitOfWork(workInProgress);
 	}
 }
 
+// 向下 beginWork 一下，或者向上 completeWork 一条线
+// 如果 beginWork 阶段: beginWork 一个节点
+// 如果 completeWork 阶段: 向上 completeWork 直到父亲有兄弟
+// A -> B -> C
+// beginWork: performUnitOfWork(A) = beginWork(A)
+// completeWork: performUnitOfWork(C) = completeWork(C) & completeWork(B) & completeWork(A)
 function performUnitOfWork(fiber: FiberNode) {
 	const next = beginWork(fiber, wipRootRenderLane);
 	// pendingProps 存储的是即将应用到组件的新的 props。
@@ -153,6 +285,8 @@ function performUnitOfWork(fiber: FiberNode) {
 	}
 }
 
+// wip 有兄弟节点: completeWork(wip) -> return -> (接下来会回到 performUnitOfWork 去 beginWork 兄弟节点)
+// wip 无兄弟节点: 向上 completeWork 直到父亲有兄弟
 function completeUnitOfWork(fiber: FiberNode) {
 	let node: FiberNode | null = fiber;
 	while (node !== null) {
@@ -225,26 +359,35 @@ function commitRoot(root: FiberRootNode) {
 		root.current = finishedWork;
 	}
 	rootDoesHasPassiveEffects = false; // 解锁
-	ensureRootIsScheduled(root); // 启动一个新的更新，处理commit阶段同时产生的更新
+	ensureRootIsScheduled(root); // 处理剩余的渲染任务，比如因为被高优先级打断的低优先级任务
 }
 
+// 处理存在 root 上的 Effect
+// 是异步执行的，在宏任务内
 function flushPassiveEffects(pendingPassiveEffects: PendingPassiveEffects) {
+	// 干活了吗？
+	let didFlushPassiveEffect = false;
 	// ............... 处理 unmount ...............
 	pendingPassiveEffects.unmount.forEach((effect) => {
+		didFlushPassiveEffect = true; // 真的干了！
 		commitHookEffectListUnmount(Passive, effect);
 	});
 	pendingPassiveEffects.unmount = [];
 	// ............... 处理 update ...............
 	// 1. destroy
 	pendingPassiveEffects.update.forEach((effect) => {
+		didFlushPassiveEffect = true; // 真的干了！
 		commitHookEffectListDestroy(Passive | HookHasEffect, effect);
 	});
 	// 2. create
 	pendingPassiveEffects.update.forEach((effect) => {
+		didFlushPassiveEffect = true; // 真的干了！
 		commitHookEffectListCreate(Passive | HookHasEffect, effect);
 	});
 	pendingPassiveEffects.update = [];
 
 	// ............... 处理在执行 useEffect 的回调函数时，触发的同步更新 ...............
 	flushSyncCallbacks();
+
+	return didFlushPassiveEffect; // 没干活!
 }

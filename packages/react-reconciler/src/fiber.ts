@@ -9,6 +9,7 @@ import {
 import { Flags, NoFlags } from './fiberFlags';
 import { Lane, Lanes, NoLane, NoLanes } from './fiberLanes';
 import { Effect } from './fiberHooks';
+import { CallbackNode } from 'scheduler';
 
 export interface PendingPassiveEffects {
 	unmount: Effect[];
@@ -26,6 +27,9 @@ export class FiberRootNode {
 	finishedLane: Lane; // 本次的完成渲染的更新的优先级
 	// 处理useEffect
 	pendingPassiveEffects: PendingPassiveEffects;
+	// 并发
+	callbackNode: CallbackNode | null; // 已经提交给 Scheduler 的那个任务
+	callbackPriority: Lane; // 当前 callback 的优先级
 
 	constructor(container: Container, hostRootFiber: FiberNode) {
 		this.container = container;
@@ -37,6 +41,8 @@ export class FiberRootNode {
 			unmount: [],
 			update: []
 		};
+		this.callbackNode = null;
+		this.callbackPriority = NoLane;
 
 		hostRootFiber.stateNode = this;
 	}

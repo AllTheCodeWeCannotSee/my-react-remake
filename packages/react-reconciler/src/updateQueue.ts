@@ -1,6 +1,6 @@
 import { Dispatch } from 'react/src/currentDispatcher';
 import { Action } from 'shared/ReactTypes';
-import { Lane } from './fiberLanes';
+import { isSubsetOfLanes, Lane, NoLane } from './fiberLanes';
 
 // ---------------------------------- Update --------------------------------- //
 // 触发更新的方式1. ReactDOM.createRoot().render
@@ -139,36 +139,81 @@ export const processUpdateQueue = <State>(
 	baseState: State,
 	pendingUpdate: Update<State> | null,
 	renderLane: Lane
-): { memoizedState: State } => {
+): {
+	memoizedState: State;
+	baseState: State;
+	baseQueue: Update<State> | null;
+} => {
 	// result = { memoizedState: 100}
 	const result: ReturnType<typeof processUpdateQueue<State>> = {
-		memoizedState: baseState
+		memoizedState: baseState,
+		baseState, // baseState: 最后一个没被跳过的update计算后的结果
+		baseQueue: null // baseQueue: 被跳过的update及其后面的所有update
 	};
 	if (pendingUpdate !== null) {
 		// first 指向 A, 即最旧的更新任务
 		const first = pendingUpdate.next;
 		// pending 指向 A
 		let pending = pendingUpdate.next as Update<any>;
+
+		// state 可中断机制
+		let newBaseState = baseState;
+		let newBaseQueueFirst: Update<State> | null = null;
+		let newBaseQueueLast: Update<State> | null = null;
+		let newState = baseState; // 保证一定是连续的
+
 		// 遍历所有的 setNum
 		do {
+			// 此 update 对应的优先级
 			const updateLane = pending.lane;
-			if (updateLane === renderLane) {
+
+			// 如果优先级不够 -> 跳过
+			// 如果优先级足够 -> 执行action
+			if (!isSubsetOfLanes(renderLane, updateLane)) {
+				// 优先级不够, 加入 baseQueue
+				const clone = createUpdate(pending.action, pending.lane);
+
+				if (newBaseQueueFirst === null) {
+					// 是第一个被跳过的
+					newBaseQueueFirst = clone;
+					newBaseQueueLast = clone;
+					newBaseState = newState;
+				} else {
+					// 不是第一个被跳过
+					(newBaseQueueLast as Update<State>).next = clone;
+					newBaseQueueLast = clone;
+				}
+			} else {
+				// 优先级足够
+				if (newBaseQueueLast !== null) {
+					// 存在被跳过的，被跳过的update及其后面的所有update要入队到baseQueue
+					const clone = createUpdate(pending.action, NoLane);
+					newBaseQueueLast.next = clone;
+					newBaseQueueLast = clone;
+				}
+				// 优先级足够且不存在被跳过的update, 正常执行
+
 				// 执行 (num) => num + 1
 				const action = pending.action;
 				if (action instanceof Function) {
-					baseState = action(baseState);
+					newState = action(baseState);
 				} else {
-					baseState = action;
-				}
-			} else {
-				if (__DEV__) {
-					console.error('不应该进入updateLane !== renderLane逻辑');
+					newState = action;
 				}
 			}
 			pending = pending.next as Update<any>;
 		} while (pending !== first);
+
+		if (newBaseQueueLast === null) {
+			// 没有被跳过的 udate
+			newBaseState = newState;
+		} else {
+			// 有被跳过的 uodate
+			newBaseQueueLast.next = newBaseQueueFirst; // 形成循环链表
+		}
+		result.memoizedState = newState;
+		result.baseState = newBaseState;
+		result.baseQueue = newBaseQueueLast;
 	}
-	// result = { memoizedState: 103}
-	result.memoizedState = baseState;
 	return result;
 };

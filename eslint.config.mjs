@@ -49,7 +49,8 @@ export default defineConfig([
 			'@typescript-eslint/no-explicit-any': 'off',
 			'no-unused-vars': 'off',
 			'@typescript-eslint/no-require-imports': 'off',
-			'@typescript-eslint/no-unused-vars': 'off'
+			'@typescript-eslint/no-unused-vars': 'off',
+			'@typescript-eslint/no-unused-expressions': 'off'
 		}
 	}
 ]);
