@@ -15,6 +15,7 @@ import { scheduleUpdateOnFiber } from './workLoop';
 import { Flags, PassiveEffect } from './fiberFlags';
 import { Lane, NoLane, requestUpdateLane } from './fiberLanes';
 import { HookHasEffect, Passive } from './hookEffectTags';
+import currentBatchConfig from 'react/src/currentBatchConfig';
 
 // ---------------------------------- 数据结构 --------------------------------- //
 // 当前在 render 的 fibernode
@@ -106,7 +107,8 @@ export function renderWithHooks(wip: FiberNode, lane: Lane) {
 // 推给数据层的
 const HooksDispatcherOnMount: Dispatcher = {
 	useState: mountState,
-	useEffect: mountEffect
+	useEffect: mountEffect,
+	useTransition: mountTransition
 };
 // 创建空的 Hook, 并连接到链表 fibernode.memoizedState中
 function mountWorkInProgresHook(): Hook {
@@ -143,7 +145,8 @@ function mountWorkInProgresHook(): Hook {
 // 推给数据层的
 const HooksDispatcherOnUpdate: Dispatcher = {
 	useState: updateState,
-	useEffect: updateEffect
+	useEffect: updateEffect,
+	useTransition: updateTransition
 };
 
 // 根据老 Hook 创建新 Hook, 尾插到 fiber.memoizedState
@@ -416,4 +419,33 @@ function areHookInputsEqual(nextDeps: EffectDeps, prevDeps: EffectDeps) {
 		return false;
 	}
 	return true;
+}
+// ---------------------------------- useTransition --------------------------------- //
+// const [isPending, startTransition] = useTransition();
+// startTransition(() => { setTab(nextTab) });
+
+// ............... mount ...............
+function mountTransition(): [boolean, (callback: () => void) => void] {
+	const [isPending, setPending] = mountState(false);
+	// 新建一个 hook 到链表
+	const hook = mountWorkInProgresHook();
+	const start = startTransition.bind(null, setPending);
+	hook.memoizedState = start;
+	return [isPending, start];
+}
+// ............ update ............
+function updateTransition(): [boolean, (callback: () => void) => void] {
+	const [isPending] = updateState();
+	const hook = updateWorkInProgresHook();
+	const start = hook.memoizedState;
+	return [isPending as boolean, start];
+}
+// ............ 辅助函数 ............
+function startTransition(setPending: Dispatch<boolean>, callback: () => void) {
+	setPending(true);
+	const prevTransition = currentBatchConfig.transition;
+	currentBatchConfig.transition = 1;
+	callback(); // 这个callback内的更新，优先级是TransitionLane
+	setPending(false);
+	currentBatchConfig.transition = prevTransition;
 }
