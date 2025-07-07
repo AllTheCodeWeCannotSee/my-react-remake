@@ -7,6 +7,7 @@ import { Action } from 'shared/ReactTypes';
 export type Dispatch<State> = (action: Action<State>) => void;
 
 // const [count, setCount] = useState(0)
+// const [isPending, startTransition] = useTransition(callback)
 export interface Dispatcher {
 	useState: <T>(initialState: (() => T) | T) => [T, Dispatch<T>];
 	useEffect: (callback: () => void, deps: any[] | void) => void;

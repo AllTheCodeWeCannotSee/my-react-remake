@@ -15,6 +15,7 @@ import { scheduleUpdateOnFiber } from './workLoop';
 import { Flags, PassiveEffect } from './fiberFlags';
 import { Lane, NoLane, requestUpdateLane } from './fiberLanes';
 import { HookHasEffect, Passive } from './hookEffectTags';
+
 // ---------------------------------- 数据结构 --------------------------------- //
 // 当前在 render 的 fibernode
 let currentlyRenderingFiber: FiberNode | null = null;
@@ -213,6 +214,7 @@ function mountState<State>(
 		memoizedState = initialState;
 	}
 	hook.memoizedState = memoizedState;
+	hook.baseState = memoizedState;
 	// 3. hook.updateQueue
 	const queue = createUpdateQueue<State>();
 	hook.updateQueue = queue;
@@ -258,12 +260,14 @@ function updateState<State>(): [State, Dispatch<State>] {
 
 	const baseState = hook.baseState;
 	const current = currentHook as Hook;
+	// 遗留的 updates
 	let baseQueue = current.baseQueue;
-
+	// 新的 updates
 	const pending = queue.shared.pending;
 
 	queue.shared.pending = null;
 
+	// 有新 update 的 -> 合并
 	if (pending !== null) {
 		if (baseQueue !== null) {
 			// baseQueue b2 -> b0 -> b1 -> b2
@@ -281,17 +285,19 @@ function updateState<State>(): [State, Dispatch<State>] {
 		baseQueue = pending; // baseQueue = p2
 		current.baseQueue = pending;
 		queue.shared.pending = null;
-		if (baseQueue !== null) {
-			const {
-				memoizedState,
-				baseQueue: newBaseQueue,
-				baseState: newBaseState
-			} = processUpdateQueue(baseState, baseQueue, renderLane);
-			hook.memoizedState = memoizedState;
-			hook.baseState = newBaseState;
-			hook.baseQueue = newBaseQueue;
-		}
 	}
+	// 只有遗留的
+	if (baseQueue !== null) {
+		const {
+			memoizedState,
+			baseQueue: newBaseQueue,
+			baseState: newBaseState
+		} = processUpdateQueue(baseState, baseQueue, renderLane);
+		hook.memoizedState = memoizedState;
+		hook.baseState = newBaseState;
+		hook.baseQueue = newBaseQueue;
+	}
+
 	return [hook.memoizedState, queue.dispatch as Dispatch<State>];
 }
 
