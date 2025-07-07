@@ -12,7 +12,7 @@ import { FiberRootNode } from './fiber';
 export type Lane = number; // 某次更新的优先级
 export type Lanes = number; // lane 的集合
 
-export const NoLane = 0b0000;
+export const NoLane = 0b0000; // 必须被执行以保证状态一致性的“追赶”更新
 export const NoLanes = 0b0000;
 export const SyncLane = 0b0001; // 最高优先级的同步更新
 export const InputContinuousLane = 0b0010;
