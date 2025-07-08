@@ -11,10 +11,16 @@ export type Dispatch<State> = (action: Action<State>) => void;
 // const [isPending, startTransition] = useTransition();
 // startTransition(() => { setTab(nextTab) });
 
+// ref 是对象
+// const ref = useRef(initialValue)
+// ref.current = 123
+// ref 是函数
+// ref={(dom) => console.warn('dom is:', dom)
 export interface Dispatcher {
 	useState: <T>(initialState: (() => T) | T) => [T, Dispatch<T>];
 	useEffect: (callback: () => void, deps: any[] | void) => void;
 	useTransition: () => [boolean, (callback: () => void) => void];
+	useRef: <T>(initialState: T) => { current: T };
 }
 
 const currentDispatcher: { current: Dispatcher | null } = {

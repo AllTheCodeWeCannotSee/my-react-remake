@@ -369,12 +369,8 @@ function ChildReconciler(shouldTrackEffects: boolean) {
 			);
 		}
 		// 兜底删除, newChild 不存在, currentFiber 存在
-		if (currentFiber !== null) {
-			deleteRemainingChildren(returnFiber, currentFiber);
-		}
-		if (__DEV__) {
-			console.warn('未实现的reconcile类型', newChild);
-		}
+		deleteRemainingChildren(returnFiber, currentFiber);
+
 		return null;
 	};
 }

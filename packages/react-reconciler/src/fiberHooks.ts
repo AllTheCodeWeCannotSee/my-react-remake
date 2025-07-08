@@ -108,7 +108,8 @@ export function renderWithHooks(wip: FiberNode, lane: Lane) {
 const HooksDispatcherOnMount: Dispatcher = {
 	useState: mountState,
 	useEffect: mountEffect,
-	useTransition: mountTransition
+	useTransition: mountTransition,
+	useRef: mountRef
 };
 // 创建空的 Hook, 并连接到链表 fibernode.memoizedState中
 function mountWorkInProgresHook(): Hook {
@@ -146,7 +147,8 @@ function mountWorkInProgresHook(): Hook {
 const HooksDispatcherOnUpdate: Dispatcher = {
 	useState: updateState,
 	useEffect: updateEffect,
-	useTransition: updateTransition
+	useTransition: updateTransition,
+	useRef: updateRef
 };
 
 // 根据老 Hook 创建新 Hook, 尾插到 fiber.memoizedState
@@ -448,4 +450,22 @@ function startTransition(setPending: Dispatch<boolean>, callback: () => void) {
 	callback(); // 这个callback内的更新，优先级是TransitionLane
 	setPending(false);
 	currentBatchConfig.transition = prevTransition;
+}
+// ---------------------------------- useRef --------------------------------- //
+
+// const ref = useRef(initialValue);
+// ref.current = 123;
+
+// ............... mount ...............
+
+function mountRef<T>(initialValue: T): { current: T } {
+	const hook = mountWorkInProgresHook();
+	const ref = { current: initialValue };
+	hook.memoizedState = ref;
+	return ref;
+}
+// ............ update ............
+function updateRef<T>(initialValue: T): { current: T } {
+	const hook = updateWorkInProgresHook();
+	return hook.memoizedState;
 }

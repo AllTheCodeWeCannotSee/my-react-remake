@@ -5,7 +5,7 @@ import {
 	Instance
 } from 'react-dom/src/hostConfig';
 import { FiberNode } from './fiber';
-import { NoFlags, Update } from './fiberFlags';
+import { NoFlags, Ref, Update } from './fiberFlags';
 import {
 	Fragment,
 	FunctionComponent,
@@ -28,6 +28,10 @@ export const completeWork = (wip: FiberNode) => {
 			if (current !== null && wip.stateNode) {
 				// update
 				updateFiberProps(wip.stateNode, newProps);
+				// ref
+				if (current.ref !== wip.ref) {
+					markRef(wip);
+				}
 			} else {
 				// mount
 				// 1. 构建wip-DOM
@@ -35,6 +39,10 @@ export const completeWork = (wip: FiberNode) => {
 				// 2. 将 child-DOM 插入 wip-DOM 中
 				appendAllChildren(instance, wip);
 				wip.stateNode = instance;
+				// ref
+				if (wip.ref !== null) {
+					markRef(wip);
+				}
 			}
 			bubbleProperties(wip);
 			return null;
@@ -113,4 +121,8 @@ function appendAllChildren(parent: Container | Instance, wip: FiberNode) {
 // 给 fiber 打上 Update 标签
 function markUpdate(fiber: FiberNode) {
 	fiber.flags |= Update;
+}
+
+function markRef(fiber: FiberNode) {
+	fiber.flags |= Ref;
 }

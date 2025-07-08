@@ -11,6 +11,7 @@ import {
 } from './workTags';
 import { renderWithHooks } from './fiberHooks';
 import { Lane } from './fiberLanes';
+import { Ref } from './fiberFlags';
 
 // beginWork的工作是处理wip的子节点
 export const beginWork = (wip: FiberNode, renderLane: Lane) => {
@@ -51,6 +52,8 @@ function updateHostRoot(wip: FiberNode, renderLane: Lane) {
 	wip.memoizedState = memoizedState;
 	// nextChildren = <App />
 	const nextChildren = wip.memoizedState;
+	// 标记 Ref
+	markRef(wip.alternate, wip);
 	reconcileChildren(wip, nextChildren);
 	return wip.child;
 }
@@ -90,5 +93,17 @@ function reconcileChildren(wip: FiberNode, children?: ReactElementType) {
 		// mount
 		// fiber.current === null 全等于 mount
 		wip.child = mountChildFibers(wip, null, children);
+	}
+}
+// ---------------------------------- 辅助函数 --------------------------------- //
+function markRef(current: FiberNode | null, workInProgress: FiberNode) {
+	const ref = workInProgress.ref;
+	// 旧的没有，新的有ref
+	// 旧的有，但是ref不一样
+	if (
+		(current === null && ref !== null) ||
+		(current !== null && current.ref !== ref)
+	) {
+		workInProgress.flags |= Ref;
 	}
 }

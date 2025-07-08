@@ -1,14 +1,15 @@
 export type Flags = number;
 
-export const NoFlags = 0b0000000;
-export const Placement = 0b0000001;
-export const Update = 0b0000010;
-export const ChildDeletion = 0b0000100;
+export const NoFlags = 0b00000000000000000000000000;
+export const Placement = 0b00000000000000000000000010;
+export const Update = 0b00000000000000000000000100;
+export const ChildDeletion = 0b00000000000000000000010000;
 
-export const PassiveEffect = 0b0001000; // 此 fiber 内有 useEffect 需要处理
+export const PassiveEffect = 0b00000000000000000000100000; // 此 fiber 内有 useEffect 需要处理
+export const Ref = 0b00000000000000000001000000;
 
-export const MutationMask = Placement | Update | ChildDeletion;
-
+export const MutationMask = Placement | Update | ChildDeletion | Ref;
+export const LayoutMask = Ref;
 // 被动副作用，完成 DOM 后异步执行
 // 宁可错杀，不可放过
 // PassiveEffect: create 回调

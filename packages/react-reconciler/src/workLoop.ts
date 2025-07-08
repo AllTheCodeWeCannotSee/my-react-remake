@@ -4,6 +4,7 @@ import {
 	commitHookEffectListCreate,
 	commitHookEffectListDestroy,
 	commitHookEffectListUnmount,
+	commitLayoutEffects,
 	commitMutationEffects
 } from './commitWork';
 import { completeWork } from './completeWork';
@@ -350,13 +351,14 @@ function commitRoot(root: FiberRootNode) {
 	const rootHasEffect = (finishedWork.flags & MutationMask) !== NoFlags;
 
 	if (subtreeHasEffect || rootHasEffect) {
-		// beforeMutation
-		// mutation
+		// 1/3 beforeMutation
+		// 2/3 mutation
 		commitMutationEffects(finishedWork, root);
 		// 3. 切换双缓冲树
 		root.current = finishedWork;
 
-		// layout
+		// 3/3 layout
+		commitLayoutEffects(finishedWork, root);
 	} else {
 		// 3. 切换双缓冲树
 		root.current = finishedWork;

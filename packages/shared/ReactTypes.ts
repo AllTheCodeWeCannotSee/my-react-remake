@@ -1,14 +1,13 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 export type Type = any;
-export type Ref = any;
+// Ref 的2种数据结构
+// (instance: T) => void
+// {current: T}
+export type Ref = ((instance: any) => void) | { current: any } | null;
 export type Key = any;
 export type ElementType = any;
 export type Props = any;
 
-/**
- * @description jsx生成的react元素
- */
+// jsx生成的react元素
 export interface ReactElementType {
 	$$typeof: symbol | number;
 	type: ElementType;

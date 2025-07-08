@@ -30,3 +30,8 @@ export const useTransition: Dispatcher['useTransition'] = () => {
 	const dispatcher = resolveDispatcher();
 	return dispatcher.useTransition();
 };
+
+export const useRef: Dispatcher['useRef'] = (initialValue) => {
+	const dispatcher = resolveDispatcher() as Dispatcher;
+	return dispatcher.useRef(initialValue);
+};

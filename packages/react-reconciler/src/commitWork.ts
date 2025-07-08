@@ -9,10 +9,13 @@ import { FiberNode, FiberRootNode, PendingPassiveEffects } from './fiber';
 import {
 	ChildDeletion,
 	Flags,
+	LayoutMask,
 	MutationMask,
 	NoFlags,
 	PassiveEffect,
+	PassiveMask,
 	Placement,
+	Ref,
 	Update
 } from './fiberFlags';
 import { Container } from './hostConfig';
@@ -30,34 +33,36 @@ let nextEffect: FiberNode | null = null;
 // 最后 真实DOM--[root], 会连接上所有的真实DOM节点
 
 // ---------------------------------- commitWork主体 --------------------------------- //
-export const commitMutationEffects = (
-	finishedWork: FiberNode,
-	root: FiberRootNode
-) => {
-	nextEffect = finishedWork;
-	while (nextEffect !== null) {
-		// 向下遍历 (向下寻找 effect 的起点)
-		const child: FiberNode | null = nextEffect.child;
-		if (
-			(nextEffect.subtreeFlags & (MutationMask | PassiveEffect)) !== NoFlags &&
-			child !== null
-		) {
-			nextEffect = child;
-		} else {
-			// 向上遍历 (处理节点并移动到兄弟节点或父节点)
-			// 此时的节点一定有副作用
-			up: while (nextEffect !== null) {
-				commitMutaitonEffectsOnFiber(nextEffect, root);
-				const sibling: FiberNode | null = nextEffect.sibling;
 
-				if (sibling !== null) {
-					nextEffect = sibling;
-					break up;
+// 遍历 fiber 树，对有副作用的节点执行 callback
+export const commitEffects = (
+	phrase: 'mutation' | 'layout',
+	mask: Flags,
+	callback: (fiber: FiberNode, root: FiberRootNode) => void
+) => {
+	return (finishedWork: FiberNode, root: FiberRootNode) => {
+		nextEffect = finishedWork;
+		while (nextEffect !== null) {
+			// 向下遍历 (向下寻找 effect 的起点)
+			const child: FiberNode | null = nextEffect.child;
+			if ((nextEffect.subtreeFlags & mask) !== NoFlags && child !== null) {
+				nextEffect = child;
+			} else {
+				// 向上遍历 (处理节点并移动到兄弟节点或父节点)
+				// 此时的节点一定有副作用
+				up: while (nextEffect !== null) {
+					callback(nextEffect, root);
+					const sibling: FiberNode | null = nextEffect.sibling;
+
+					if (sibling !== null) {
+						nextEffect = sibling;
+						break up;
+					}
+					nextEffect = nextEffect.return;
 				}
-				nextEffect = nextEffect.return;
 			}
 		}
-	}
+	};
 };
 
 // 处理有副作用的节点
@@ -69,7 +74,7 @@ const commitMutaitonEffectsOnFiber = (
 	finishedWork: FiberNode,
 	root: FiberRootNode
 ) => {
-	const flags = finishedWork.flags;
+	const { flags, tag } = finishedWork;
 	// flags Placement
 	if ((flags & Placement) !== NoFlags) {
 		commitPlacement(finishedWork);
@@ -95,7 +100,33 @@ const commitMutaitonEffectsOnFiber = (
 		commitPassiveEffect(finishedWork, root, 'update');
 		finishedWork.flags &= ~PassiveEffect;
 	}
+	// flags Ref
+	if ((flags & Ref) !== NoFlags && tag === HostComponent) {
+		safelyDetachRef(finishedWork);
+	}
 };
+
+const commitLayoutEffectsOnFiber = (
+	finishedWork: FiberNode,
+	root: FiberRootNode
+) => {
+	const { flags, tag } = finishedWork;
+	if ((flags & Ref) !== NoFlags && tag === HostComponent) {
+		safelyAttachRef(finishedWork);
+		finishedWork.flags &= ~Ref;
+	}
+};
+
+export const commitMutationEffects = commitEffects(
+	'mutation',
+	MutationMask | PassiveMask,
+	commitMutaitonEffectsOnFiber
+);
+export const commitLayoutEffects = commitEffects(
+	'layout',
+	LayoutMask,
+	commitLayoutEffectsOnFiber
+);
 
 // ---------------------------------- 处理不同的副作用 --------------------------------- //
 const commitPlacement = (finishedWork: FiberNode) => {
@@ -126,13 +157,14 @@ function commitDeletion(childToDelete: FiberNode, root: FiberRootNode) {
 		switch (unmountFiber.tag) {
 			case HostComponent:
 				recordHostChildrenToDelete(rootChildrenToDelete, unmountFiber);
-				// TODO 解绑ref
+				// 解绑 Ref
+				safelyDetachRef(unmountFiber);
+
 				return;
 			case HostText:
 				recordHostChildrenToDelete(rootChildrenToDelete, unmountFiber);
 				return;
 			case FunctionComponent:
-				// TODO 解绑ref
 				// useEffect unmount, 将该 fiber 的 Effect 链表加入 root.pendingPassiveEffects.unmount
 				commitPassiveEffect(unmountFiber, root, 'unmount');
 				return;
@@ -387,6 +419,39 @@ function recordHostChildrenToDelete(
 			}
 			// 已有 unmountFiber 的父节点入队
 			node = node.sibling;
+		}
+	}
+}
+
+// ref 是对象
+// const ref = useRef(initialValue)
+// ref.current = 123
+// ref 是函数
+// ref.current = (dom) => console.warn('dom is:', dom)
+function safelyDetachRef(current: FiberNode) {
+	const ref = current.ref;
+
+	if (ref !== null) {
+		if (typeof ref === 'function') {
+			// ref 是函数
+			ref(null);
+		} else {
+			// ref 是对象
+			ref.current = null;
+		}
+	}
+}
+
+function safelyAttachRef(fiber: FiberNode) {
+	const ref = fiber.ref;
+	if (ref !== null) {
+		const instance = fiber.stateNode;
+		if (typeof ref === 'function') {
+			// ref 是函数
+			ref(instance);
+		} else {
+			// ref 是对象
+			ref.current = instance;
 		}
 	}
 }
