@@ -7,6 +7,7 @@ import {
 import { FiberNode } from './fiber';
 import { NoFlags, Ref, Update } from './fiberFlags';
 import {
+	ContextProvider,
 	Fragment,
 	FunctionComponent,
 	HostComponent,
@@ -15,6 +16,7 @@ import {
 } from './workTags';
 import { Container } from './hostConfig';
 import { updateFiberProps } from 'react-dom/src/SyntheticEvent';
+import { popProvider } from './fiberContext';
 
 // ---------------------------------- completeWork --------------------------------- //
 export const completeWork = (wip: FiberNode) => {
@@ -65,6 +67,11 @@ export const completeWork = (wip: FiberNode) => {
 			bubbleProperties(wip);
 			return null;
 		case Fragment:
+			bubbleProperties(wip);
+			return null;
+		case ContextProvider:
+			const context = wip.type._context;
+			popProvider(context);
 			bubbleProperties(wip);
 			return null;
 		default:

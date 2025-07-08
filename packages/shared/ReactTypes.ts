@@ -17,3 +17,15 @@ export interface ReactElementType {
 }
 
 export type Action<State> = State | ((preState: State) => State);
+
+// context
+// 放在 fiber.type 中
+export type ReactProviderType<T> = {
+	$$typeof: symbol | number;
+	_context: ReactContext<T> | null;
+};
+export type ReactContext<T> = {
+	$$typeof: symbol | number;
+	Provider: ReactProviderType<T> | null;
+	_currentValue: T;
+};

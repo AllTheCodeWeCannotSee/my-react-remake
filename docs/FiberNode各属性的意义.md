@@ -1,6 +1,6 @@
 tag:
 ---------------------------------- 源自ReactElement ---------------------------------
-type:
+type: 来源: ReactElement -> babel，比如 App()
 key:
 ref: 一个ref对象/回调函数
 pendingProps:

@@ -3,6 +3,7 @@ import currentDispatcher, {
 	resolveDispatcher
 } from './src/currentDispatcher';
 import { jsxDEV } from './src/jsx';
+export { createContext } from './src/context';
 // React
 
 export default {
@@ -34,4 +35,10 @@ export const useTransition: Dispatcher['useTransition'] = () => {
 export const useRef: Dispatcher['useRef'] = (initialValue) => {
 	const dispatcher = resolveDispatcher() as Dispatcher;
 	return dispatcher.useRef(initialValue);
+};
+
+// const SomeContext = createContext(defaultValue)
+export const useContext: Dispatcher['useContext'] = (context) => {
+	const dispatcher = resolveDispatcher() as Dispatcher;
+	return dispatcher.useContext(context);
 };

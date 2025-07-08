@@ -3,6 +3,7 @@ import { mountChildFibers, reconcileChildFibers } from './childFibers';
 import { FiberNode } from './fiber';
 import { processUpdateQueue, UpdateQueue } from './updateQueue';
 import {
+	ContextProvider,
 	Fragment,
 	FunctionComponent,
 	HostComponent,
@@ -12,6 +13,7 @@ import {
 import { renderWithHooks } from './fiberHooks';
 import { Lane } from './fiberLanes';
 import { Ref } from './fiberFlags';
+import { pushProvider } from './fiberContext';
 
 // beginWork的工作是处理wip的子节点
 export const beginWork = (wip: FiberNode, renderLane: Lane) => {
@@ -26,6 +28,8 @@ export const beginWork = (wip: FiberNode, renderLane: Lane) => {
 			return updateFunctionComponent(wip, renderLane);
 		case Fragment:
 			return updateFragment(wip);
+		case ContextProvider:
+			return updateContextProvider(wip);
 		default:
 			if (__DEV__) {
 				console.warn('beginWork未实现的类型');
@@ -78,6 +82,22 @@ function updateFragment(wip: FiberNode) {
 	return wip.child;
 }
 
+// const ctxA = createContext('deafult A');
+
+// <ctxA.Provider value={'A1'}>
+// 	<Cpn />
+// </ctxA.Provider>
+function updateContextProvider(wip: FiberNode) {
+	const providerType = wip.type; // providerType = ctxA.Provider
+	const context = providerType._context; // context = ctxA
+	const newProps = wip.pendingProps;
+
+	pushProvider(context, newProps.value);
+
+	const nextChildren = newProps.children;
+	reconcileChildren(wip, nextChildren);
+	return wip.child;
+}
 // ---------------------------------- reconcileChildren --------------------------------- //
 
 // updateHostRoot: reconcileChildren(hostRootFiber, <App />)
