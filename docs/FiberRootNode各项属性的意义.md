@@ -11,3 +11,9 @@ pendingPassiveEffects:
 
 callbackNode: 见《callbackNode的数据结构》
 callbackPriority: 当前执行任务的优先级
+
+---------------------------------- suspense ---------------------------------
+
+- suspendedLanes
+
+- pingedLanes

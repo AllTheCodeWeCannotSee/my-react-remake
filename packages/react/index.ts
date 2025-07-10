@@ -4,6 +4,7 @@ import currentDispatcher, {
 } from './src/currentDispatcher';
 import { jsxDEV } from './src/jsx';
 export { createContext } from './src/context';
+export { REACT_SUSPENSE_TYPE as Suspense } from 'shared/ReactSymbols';
 // React
 
 export default {

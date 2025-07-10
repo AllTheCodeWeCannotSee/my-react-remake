@@ -1,6 +1,6 @@
 ### beginWork
 
-- 主要工作：处理wip的子节点
+- 主要工作：1. 处理wip的子节点 2. 如果wip有状态->处理状态
 - 前序dfs
 - 由 父节点的 ReactElement 生成子节点 FiberNode
   - ReactElement存放在updateQueue（hostRootFiber）与 父节点的pendingProps中
