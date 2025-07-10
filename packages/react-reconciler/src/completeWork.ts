@@ -5,18 +5,21 @@ import {
 	Instance
 } from 'react-dom/src/hostConfig';
 import { FiberNode } from './fiber';
-import { NoFlags, Ref, Update } from './fiberFlags';
+import { NoFlags, Ref, Update, Visibility } from './fiberFlags';
 import {
 	ContextProvider,
 	Fragment,
 	FunctionComponent,
 	HostComponent,
 	HostRoot,
-	HostText
+	HostText,
+	OffscreenComponent,
+	SuspenseComponent
 } from './workTags';
 import { Container } from './hostConfig';
 import { updateFiberProps } from 'react-dom/src/SyntheticEvent';
 import { popProvider } from './fiberContext';
+import { popSuspenseHandler } from './suspenseContext';
 
 // ---------------------------------- completeWork --------------------------------- //
 export const completeWork = (wip: FiberNode) => {
@@ -72,6 +75,29 @@ export const completeWork = (wip: FiberNode) => {
 		case ContextProvider:
 			const context = wip.type._context;
 			popProvider(context);
+			bubbleProperties(wip);
+			return null;
+		case OffscreenComponent: // 非挂起状态的中间层节点
+			bubbleProperties(wip);
+			return null;
+		case SuspenseComponent:
+			popSuspenseHandler();
+			const offscreenFiber = wip.child as FiberNode; // 中间层 offscreen
+			const currentOffscreenFiber = offscreenFiber.alternate; // 老树中间层 offscreen
+			const isHidden = offscreenFiber.pendingProps.mode === 'hidden';
+			if (currentOffscreenFiber !== null) {
+				const wasHidden = currentOffscreenFiber.pendingProps.mode === 'hidden';
+				if (isHidden !== wasHidden) {
+					// 1/3. 新树和老树的 children 可见性不一致：中间层 offscreen 标记 Visibility
+					offscreenFiber.flags |= Visibility;
+					bubbleProperties(offscreenFiber);
+				}
+			} else if (isHidden) {
+				// 2/3. 老树挂起 & 新树挂起：中间层 offscreen 标记 Visibility
+				offscreenFiber.flags |= Visibility;
+				bubbleProperties(offscreenFiber);
+			}
+			// 3/3. 其他情况
 			bubbleProperties(wip);
 			return null;
 		default:

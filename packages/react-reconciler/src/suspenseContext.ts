@@ -4,3 +4,7 @@ const suspenseHandlerStack: FiberNode[] = [];
 export function pushSuspenseHandler(handler: FiberNode) {
 	suspenseHandlerStack.push(handler);
 }
+
+export function popSuspenseHandler() {
+	suspenseHandlerStack.pop();
+}

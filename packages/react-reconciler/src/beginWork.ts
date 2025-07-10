@@ -117,7 +117,7 @@ function updateContextProvider(wip: FiberNode) {
 	reconcileChildren(wip, nextChildren);
 	return wip.child;
 }
-// 职责：根据(current, showFallback) ，从四种路径选一个创建 <Suspense> 与 <child> 的中间层
+// 职责：根据(current, DidCapture) ，从四种路径选一个创建 <Suspense> 与 <child> 的中间层
 // wip = {
 //     tag: SuspenseComponent,
 //     flags: NoFlags,

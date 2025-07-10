@@ -15,4 +15,4 @@ export const HostText = 6;
 export const Fragment = 7;
 export const ContextProvider = 8;
 export const SuspenseComponent = 13;
-export const OffscreenComponent = 14;
+export const OffscreenComponent = 14; // 非挂起状态的中间层节点
