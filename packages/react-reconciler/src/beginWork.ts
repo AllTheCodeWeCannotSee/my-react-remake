@@ -225,6 +225,16 @@ function markRef(current: FiberNode | null, workInProgress: FiberNode) {
 //     }
 // };
 
+// const offscreenFiberNode = {
+// 	tag: OffscreenComponent,
+// 	pendingProps: {
+// 		mode: 'hidden',
+// 		children: {
+// 			/* MyComponent 对应的 ReactElement 对象 */
+// 		}
+// 	}
+// };
+
 // mount children
 // 职责：fiber(Suspense) ---> fiber(tag: OffscreenComponent, pendingProps:primaryChildProps)
 function mountSuspensePrimaryChildren(

@@ -1,9 +1,13 @@
 import {
 	appendChildToContainer,
 	commitUpdate,
+	hideInstance,
+	hideTextInstance,
 	insertChildToContainer,
 	Instance,
-	removeChild
+	removeChild,
+	unhideInstance,
+	unhideTextInstance
 } from 'react-dom/src/hostConfig';
 import { FiberNode, FiberRootNode, PendingPassiveEffects } from './fiber';
 import {
@@ -16,14 +20,16 @@ import {
 	PassiveMask,
 	Placement,
 	Ref,
-	Update
+	Update,
+	Visibility
 } from './fiberFlags';
 import { Container } from './hostConfig';
 import {
 	FunctionComponent,
 	HostComponent,
 	HostRoot,
-	HostText
+	HostText,
+	OffscreenComponent
 } from './workTags';
 import { Effect, FCUpdateQueue } from './fiberHooks';
 import { HookHasEffect } from './hookEffectTags';
@@ -104,6 +110,22 @@ const commitMutaitonEffectsOnFiber = (
 	if ((flags & Ref) !== NoFlags && tag === HostComponent) {
 		safelyDetachRef(finishedWork);
 	}
+	// flags Visibility (suspense 相关)
+	if ((flags & Visibility) !== NoFlags && tag === OffscreenComponent) {
+		// 非挂起状态的中间层节点
+		// finishedWork = {
+		// 	tag: OffscreenComponent,
+		// 	pendingProps: {
+		// 		mode: 'hidden',
+		// 		children: {
+		// 			/* MyComponent 对应的 ReactElement 对象 */
+		// 		}
+		// 	}
+		// };
+		const isHidden = finishedWork.pendingProps.mode === 'hidden';
+		hideOrUnhideAllChildren(finishedWork, isHidden);
+		finishedWork.flags &= ~Visibility; // 鱼蹬波 消
+	}
 };
 
 const commitLayoutEffectsOnFiber = (
@@ -128,7 +150,7 @@ export const commitLayoutEffects = commitEffects(
 	commitLayoutEffectsOnFiber
 );
 
-// ---------------------------------- 处理不同的副作用 --------------------------------- //
+// ---------------------------------- 处理常规副作用: Placement, Deletion --------------------------------- //
 const commitPlacement = (finishedWork: FiberNode) => {
 	if (__DEV__) {
 		console.warn('执行Placement操作', finishedWork);
@@ -265,6 +287,125 @@ export function commitPassiveEffect(
 		root.pendingPassiveEffects[type].push(updateQueue.lastEffect as Effect);
 	}
 }
+
+// ---------------------------------- 处理 useRef --------------------------------- //
+
+// ref 是对象
+// const ref = useRef(initialValue)
+// ref.current = 123
+// ref 是函数
+// ref.current = (dom) => console.warn('dom is:', dom)
+function safelyDetachRef(current: FiberNode) {
+	const ref = current.ref;
+
+	if (ref !== null) {
+		if (typeof ref === 'function') {
+			// ref 是函数
+			ref(null);
+		} else {
+			// ref 是对象
+			ref.current = null;
+		}
+	}
+}
+
+function safelyAttachRef(fiber: FiberNode) {
+	const ref = fiber.ref;
+	if (ref !== null) {
+		const instance = fiber.stateNode;
+		if (typeof ref === 'function') {
+			// ref 是函数
+			ref(instance);
+		} else {
+			// ref 是对象
+			ref.current = instance;
+		}
+	}
+}
+// ---------------------------------- 处理 suspense--------------------------------- //
+
+// 职责：根据 (host类型, isHidden) 有四种 commit 路径, 对子树的顶层 host 节点进行隐藏或者展现
+// finishedWork = {
+// 	tag: OffscreenComponent,
+// 	pendingProps: {
+// 		mode: 'hidden',
+// 		children: {
+// 			/* MyComponent 对应的 ReactElement 对象 */
+// 		}
+// 	}
+// };
+function hideOrUnhideAllChildren(finishedWork: FiberNode, isHidden: boolean) {
+	findHostSubtreeRoot(finishedWork, (hostRoot) => {
+		const instance = hostRoot.stateNode;
+		if ((hostRoot.tag = HostComponent)) {
+			// div
+			isHidden ? hideInstance(instance) : unhideInstance(instance);
+		} else if ((hostRoot.tag = HostText)) {
+			// 'hello world'
+			isHidden
+				? hideTextInstance(instance)
+				: unhideTextInstance(instance, hostRoot.memoizedProps.content); // hostRoot.memoizedProps.content = 'new hello world'
+		}
+	});
+}
+
+// 先下再上，对子树所有顶层 host 节点进行 callback
+// 非常类似 commitEffects() , beginWork() + completeWork()
+function findHostSubtreeRoot(
+	finishedWork: FiberNode,
+	callback: (hostSubtreeRoot: FiberNode) => void
+) {
+	let hostSubtreeRoot = null; // 当前子树的老大
+	let node = finishedWork;
+	while (true) {
+		// 向下遍历
+		if (node.tag === HostComponent) {
+			if (hostSubtreeRoot === null) {
+				hostSubtreeRoot = node;
+				callback(node);
+			}
+		} else if (node.tag === HostText) {
+			if (hostSubtreeRoot === null) {
+				callback(node);
+			}
+		} else if (
+			node.tag === OffscreenComponent &&
+			node.pendingProps.mode === 'hidden' &&
+			node !== finishedWork
+		) {
+			// pass
+		} else if (node.child !== null) {
+			// 继续向下
+			node.child.return = node;
+			node = node.child;
+			continue;
+		}
+		// 边界：到顶了
+		if (node === finishedWork) {
+			return;
+		}
+		// 向上, 类似 commit 的流程，向上找到有兄弟节点的
+		// 到这里说明此时的 node 类型是 host
+		while (node.sibling === null) {
+			// 边界：到顶了
+			if (node.return === null || node.return === finishedWork) {
+				return;
+			}
+			// 向上时遇到 hostSubtreeRoot === node 说明已经要脱离node的统治区，hostSubtreeRoot 有新的值
+			if (hostSubtreeRoot === node) {
+				hostSubtreeRoot = null;
+			}
+			node = node.return;
+		}
+		// 到这里说明 host 类型的 node 有兄弟节点
+		if (hostSubtreeRoot === node) {
+			hostSubtreeRoot = null;
+		}
+		node.sibling.return = node.return;
+		node = node.sibling;
+	}
+}
+
 // ---------------------------------- 辅助函数 --------------------------------- //
 
 // 从给定的 Fiber 节点开始，向上遍历 Fiber 树，直到找到第一个可以直接作为 DOM 的祖先节点
@@ -419,39 +560,6 @@ function recordHostChildrenToDelete(
 			}
 			// 已有 unmountFiber 的父节点入队
 			node = node.sibling;
-		}
-	}
-}
-
-// ref 是对象
-// const ref = useRef(initialValue)
-// ref.current = 123
-// ref 是函数
-// ref.current = (dom) => console.warn('dom is:', dom)
-function safelyDetachRef(current: FiberNode) {
-	const ref = current.ref;
-
-	if (ref !== null) {
-		if (typeof ref === 'function') {
-			// ref 是函数
-			ref(null);
-		} else {
-			// ref 是对象
-			ref.current = null;
-		}
-	}
-}
-
-function safelyAttachRef(fiber: FiberNode) {
-	const ref = fiber.ref;
-	if (ref !== null) {
-		const instance = fiber.stateNode;
-		if (typeof ref === 'function') {
-			// ref 是函数
-			ref(instance);
-		} else {
-			// ref 是对象
-			ref.current = instance;
 		}
 	}
 }
