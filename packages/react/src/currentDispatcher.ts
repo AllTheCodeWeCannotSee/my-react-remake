@@ -1,6 +1,6 @@
 // 存储了当前的操作的 hooks
 
-import { Action, ReactContext } from 'shared/ReactTypes';
+import { Action, ReactContext, Usable } from 'shared/ReactTypes';
 
 // setCount(1)
 // setCount( pre => pre + 1 )
@@ -25,6 +25,7 @@ export interface Dispatcher {
 	useTransition: () => [boolean, (callback: () => void) => void];
 	useRef: <T>(initialState: T) => { current: T };
 	useContext: <T>(context: ReactContext<T>) => T;
+	use: <T>(usable: Usable<T>) => T;
 }
 
 const currentDispatcher: { current: Dispatcher | null } = {

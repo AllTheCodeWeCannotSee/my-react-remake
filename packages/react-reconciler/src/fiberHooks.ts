@@ -10,12 +10,14 @@ import {
 	Update,
 	UpdateQueue
 } from './updateQueue';
-import { Action, ReactContext } from 'shared/ReactTypes';
+import { Action, ReactContext, Thenable, Usable } from 'shared/ReactTypes';
 import { scheduleUpdateOnFiber } from './workLoop';
 import { Flags, PassiveEffect } from './fiberFlags';
 import { Lane, NoLane, requestUpdateLane } from './fiberLanes';
 import { HookHasEffect, Passive } from './hookEffectTags';
 import currentBatchConfig from 'react/src/currentBatchConfig';
+import { REACT_CONTEXT_TYPE } from 'shared/ReactSymbols';
+import { trackUsedThenable } from './thenable';
 
 // ---------------------------------- 数据结构 --------------------------------- //
 // 当前在 render 的 fibernode
@@ -110,7 +112,8 @@ const HooksDispatcherOnMount: Dispatcher = {
 	useEffect: mountEffect,
 	useTransition: mountTransition,
 	useRef: mountRef,
-	useContext: readContext
+	useContext: readContext,
+	use
 };
 // 创建空的 Hook, 并连接到链表 fibernode.memoizedState中
 function mountWorkInProgresHook(): Hook {
@@ -150,7 +153,8 @@ const HooksDispatcherOnUpdate: Dispatcher = {
 	useEffect: updateEffect,
 	useTransition: updateTransition,
 	useRef: updateRef,
-	useContext: readContext
+	useContext: readContext,
+	use
 };
 
 // 根据老 Hook 创建新 Hook, 尾插到 fiber.memoizedState
@@ -480,4 +484,23 @@ function readContext<T>(context: ReactContext<T>): T {
 	}
 	const value = context._currentValue;
 	return value;
+}
+// ---------------------------------- use --------------------------------- //
+
+// const user = use(fetchUserData());
+// const user = use(UserContext);
+
+function use<T>(useable: Usable<T>): T {
+	if (useable !== null && typeof useable === 'object') {
+		if (typeof (useable as Thenable<T>).then === 'function') {
+			// promise
+			const thenable = useable as Thenable<T>;
+			return trackUsedThenable(thenable);
+		} else if ((useable as ReactContext<T>).$$typeof === REACT_CONTEXT_TYPE) {
+			// context
+			const context = useable as ReactContext<T>;
+			return readContext(context);
+		}
+	}
+	throw new Error('不支持的use参数 ' + useable);
 }

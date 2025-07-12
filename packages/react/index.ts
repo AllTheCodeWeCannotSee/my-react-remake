@@ -43,3 +43,8 @@ export const useContext: Dispatcher['useContext'] = (context) => {
 	const dispatcher = resolveDispatcher() as Dispatcher;
 	return dispatcher.useContext(context);
 };
+
+export const use: Dispatcher['use'] = (useable) => {
+	const dispatcher = resolveDispatcher() as Dispatcher;
+	return dispatcher.use(useable);
+};
