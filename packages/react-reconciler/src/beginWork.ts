@@ -73,6 +73,13 @@ function updateHostRoot(wip: FiberNode, renderLane: Lane) {
 	const { memoizedState } = processUpdateQueue(baseState, pending, renderLane);
 	// wip.memoizedState = <App />
 	wip.memoizedState = memoizedState;
+
+	// 为了防止下层的组件被挂起后，舍弃整个wip tree，先把计算得出的结果保存到 current.memoizedState
+	const current = wip.alternate;
+	if (current !== null) {
+		current.memoizedState = memoizedState;
+	}
+
 	// nextChildren = <App />
 	const nextChildren = wip.memoizedState;
 	// 标记 Ref

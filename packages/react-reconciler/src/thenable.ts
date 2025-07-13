@@ -67,6 +67,7 @@ export function trackUsedThenable<T>(thenable: Thenable<T>) {
 				);
 			}
 	}
+	// pending | untracked 的情况下：抛出错误
 	suspendedThenable = thenable;
 	throw SuspenseException;
 }

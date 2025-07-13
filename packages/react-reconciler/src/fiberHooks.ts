@@ -294,6 +294,8 @@ function updateState<State>(): [State, Dispatch<State>] {
 			// p2 -> b0 -> b1 -> b2 -> p0 -> p1 -> p2
 		}
 		baseQueue = pending; // baseQueue = p2
+		// 先把阶段成果保存在 current，以免打断后丢失计算出的数据
+		// 和 suspense 时，updateHostRoot类似
 		current.baseQueue = pending;
 		queue.shared.pending = null;
 	}
@@ -503,4 +505,10 @@ function use<T>(useable: Usable<T>): T {
 		}
 	}
 	throw new Error('不支持的use参数 ' + useable);
+}
+// 重置 FC 全局变量
+export function resetHooksOnUnwind(wip: FiberNode) {
+	currentlyRenderingFiber = null;
+	currentHook = null;
+	workInProgressHook = null;
 }

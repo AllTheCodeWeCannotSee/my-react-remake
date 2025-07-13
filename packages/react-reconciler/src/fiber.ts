@@ -1,4 +1,4 @@
-import { Key, Props, ReactElementType, Ref } from 'shared/ReactTypes';
+import { Key, Props, ReactElementType, Ref, Wakeable } from 'shared/ReactTypes';
 import { Container } from './hostConfig';
 import {
 	ContextProvider,
@@ -42,6 +42,10 @@ export class FiberRootNode {
 	// 并发
 	callbackNode: CallbackNode | null; // 已经提交给 Scheduler 的那个任务
 	callbackPriority: Lane; // 当前 callback 的优先级
+	// suspense
+	pingCache: WeakMap<Wakeable<any>, Set<Lane>> | null;
+	suspendedLanes: Lanes;
+	pingedLanes: Lanes;
 
 	constructor(container: Container, hostRootFiber: FiberNode) {
 		this.container = container;
@@ -55,6 +59,10 @@ export class FiberRootNode {
 		};
 		this.callbackNode = null;
 		this.callbackPriority = NoLane;
+
+		this.pingCache = null;
+		this.suspendedLanes = NoLanes;
+		this.pingedLanes = NoLanes;
 
 		hostRootFiber.stateNode = this;
 	}

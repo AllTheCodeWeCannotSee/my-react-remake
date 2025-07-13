@@ -47,6 +47,9 @@ export function getHighestPriorityLane(lanes: Lanes): Lane {
 // 从 root 中移除此优先级
 export function markRootFinished(root: FiberRootNode, lane: Lane) {
 	root.pendingLanes &= ~lane;
+	// suspense
+	root.suspendedLanes = NoLanes;
+	root.pingedLanes = NoLanes;
 }
 
 // 判断此优先级是否存在于集合
@@ -82,4 +85,41 @@ export function schedulerPriorityToLane(schedulerPriority: number): Lane {
 		return DefaultLane;
 	}
 	return NoLane;
+}
+
+// ---------------------------------- suspense --------------------------------- //
+
+// promise 完成后，将其对应lane，添加到root.pingedLanes
+export function markRootPinged(root: FiberRootNode, pingedLane: Lane) {
+	root.pendingLanes |= root.suspendedLanes & pingedLane;
+}
+
+// 选出最该执行的 lane
+// 1. 未被挂起中的最高优先级
+// 2. 挂起中的，已经被唤醒的中最高优先级
+// 3. NoLane
+export function getNextLane(root: FiberRootNode): Lane {
+	const pendingLanes = root.pendingLanes;
+	if (pendingLanes === NoLanes) {
+		return NoLane;
+	}
+	let nextLane = NoLane;
+	const unSuspendedLanes = pendingLanes & ~root.suspendedLanes;
+	if (unSuspendedLanes !== NoLanes) {
+		// 1. 未被挂起中的最高优先级
+		nextLane = getHighestPriorityLane(unSuspendedLanes);
+	} else {
+		// 2. 挂起中的，已经被唤醒的中最高优先级
+		const pingedLanes = pendingLanes & root.pingedLanes;
+		if (pingedLanes !== NoLanes) {
+			nextLane = getHighestPriorityLane(pingedLanes);
+		}
+	}
+	return nextLane;
+}
+
+// 当一次渲染因挂起而失败后，将 lane 标记到 root.suspendedLanes，并从 root.pingedLanes 移除
+export function markRootSuspended(root: FiberRootNode, suspendedLane: Lane) {
+	root.suspendedLanes |= suspendedLane;
+	root.pingedLanes &= ~suspendedLane;
 }
