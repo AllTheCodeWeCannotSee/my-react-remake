@@ -3,6 +3,7 @@ import { FiberNode } from './fiber';
 
 import { Dispatch, Dispatcher } from 'react/src/currentDispatcher';
 import {
+	basicStateReducer,
 	createUpdate,
 	createUpdateQueue,
 	enqueueUpdate,
@@ -17,6 +18,7 @@ import {
 	Lane,
 	mergeLanes,
 	NoLane,
+	NoLanes,
 	removeLanes,
 	requestUpdateLane
 } from './fiberLanes';
@@ -64,6 +66,7 @@ export interface Effect {
 }
 export interface FCUpdateQueue<State> extends UpdateQueue<State> {
 	lastEffect: Effect | null;
+	lastRenderedState: State; // eager
 }
 // ---------------------------------- 主体 --------------------------------- //
 
@@ -234,7 +237,7 @@ function mountState<State>(
 	hook.memoizedState = memoizedState;
 	hook.baseState = memoizedState;
 	// 3. hook.updateQueue
-	const queue = createUpdateQueue<State>();
+	const queue = createFCUpdateQueue<State>();
 	hook.updateQueue = queue;
 	// dispatch 相当于 setCount 函数
 	// 绑定了当前 FC fiberNode
@@ -242,6 +245,7 @@ function mountState<State>(
 	// @ts-ignore
 	const dispatch = dispatchSetState.bind(null, currentlyRenderingFiber, queue);
 	queue.dispatch = dispatch;
+	queue.lastRenderedState = memoizedState; // eager
 
 	return [memoizedState, dispatch];
 }
@@ -249,11 +253,37 @@ function mountState<State>(
 // 把 action 打包成 update, update 入队到 hook.updateQueue, 触发从 root 开始的渲染
 function dispatchSetState<State>(
 	fiber: FiberNode,
-	updateQueue: UpdateQueue<State>,
+	updateQueue: FCUpdateQueue<State>,
 	action: Action<State>
 ) {
 	const lane = requestUpdateLane();
 	const update = createUpdate(action, lane);
+
+	//~~~ eager ~~~//
+	const current = fiber.alternate;
+	// 更新队列为空，是触发 eager 的前提
+	if (
+		fiber.lanes === NoLanes &&
+		(current === null || current.lanes === NoLanes)
+	) {
+		// 更新前的 State
+		const currentState = updateQueue.lastRenderedState;
+		// 得到更新后的 State
+		const eagerState = basicStateReducer(currentState, action);
+		// 即便 currentState !== eagerState, 无法命中 eager，但是 eagerState 的计算结果是有效的（updateQueue队列的第一个update）
+		update.hasEagerState = true;
+		update.eagerState = eagerState;
+		// 判断是否命中 eager
+		if (Object.is(currentState, eagerState)) {
+			// 命中: Nolane 代表不进入调度，更不会渲染这次更新。入队的意义在于保留计算结果update.eagerState
+			enqueueUpdate(updateQueue, update, fiber, NoLane);
+			if (__DEV__) {
+				console.warn('命中eagerState', fiber);
+			}
+			return;
+		}
+	}
+
 	enqueueUpdate(updateQueue, update, fiber, lane);
 	scheduleUpdateOnFiber(fiber, lane);
 }
@@ -274,7 +304,7 @@ function updateState<State>(): [State, Dispatch<State>] {
 	// 	dispatch: setCount
 	// }
 	const hook = updateWorkInProgresHook();
-	const queue = hook.updateQueue as UpdateQueue<State>;
+	const queue = hook.updateQueue as FCUpdateQueue<State>;
 
 	const baseState = hook.baseState;
 	const current = currentHook as Hook;
@@ -329,6 +359,8 @@ function updateState<State>(): [State, Dispatch<State>] {
 		hook.memoizedState = memoizedState;
 		hook.baseState = newBaseState;
 		hook.baseQueue = newBaseQueue;
+
+		queue.lastRenderedState = memoizedState; // eager
 	}
 
 	return [hook.memoizedState, queue.dispatch as Dispatch<State>];

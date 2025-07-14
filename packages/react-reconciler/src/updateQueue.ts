@@ -10,16 +10,23 @@ export interface Update<State> {
 	action: Action<State>;
 	lane: Lane;
 	next: Update<any> | null;
+	// eager
+	hasEagerState: boolean;
+	eagerState: State | null;
 }
 
 export const createUpdate = <State>(
 	action: Action<State>,
-	lane: Lane
+	lane: Lane,
+	hasEagerState = false,
+	eagerState = null
 ): Update<State> => {
 	return {
 		action,
 		lane,
-		next: null
+		next: null,
+		hasEagerState: false,
+		eagerState: null
 	};
 };
 // ---------------------------------- UpdateQueue --------------------------------- //
@@ -209,10 +216,11 @@ export const processUpdateQueue = <State>(
 
 				// 执行 (num) => num + 1
 				const action = pending.action;
-				if (action instanceof Function) {
-					newState = action(baseState);
+				// 如果之前未命中 eager，使用其保存的计算结果
+				if (pending.hasEagerState) {
+					newState = pending.eagerState;
 				} else {
-					newState = action;
+					newState = basicStateReducer(baseState, action);
 				}
 			}
 			pending = pending.next as Update<any>;
@@ -231,3 +239,13 @@ export const processUpdateQueue = <State>(
 	}
 	return result;
 };
+
+// ---------------------------------- eager --------------------------------- //
+// 简化板的 processUpdateQueue，只是用于队列中只有一个更新，用于判断能否 eager
+export function basicStateReducer<State>(state: State, action: Action<State>) {
+	if (action instanceof Function) {
+		return action(state);
+	} else {
+		return action;
+	}
+}

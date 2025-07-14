@@ -13,7 +13,7 @@ import ReactCurrentBatchConfig from 'react/src/currentBatchConfig';
 export type Lane = number; // 某次更新的优先级
 export type Lanes = number; // lane 的集合
 
-export const NoLane = 0b00000; // 必须被执行以保证状态一致性的“追赶”更新
+export const NoLane = 0b00000; // 不参与调度。在不惊动调度器的情况下，把事情立刻在当下办了。
 export const NoLanes = 0b00000;
 export const SyncLane = 0b00001; // 最高优先级的同步更新
 export const InputContinuousLane = 0b00010;
