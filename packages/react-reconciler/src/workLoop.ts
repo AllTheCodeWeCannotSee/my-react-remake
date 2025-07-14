@@ -65,7 +65,7 @@ let workInProgressThrownValue: any = null; // 导致挂起的 Promise
 let workInProgressRootExitStatus: number = RootInProgress;
 
 export function scheduleUpdateOnFiber(fiber: FiberNode, lane: Lane) {
-	const root = markUpdateFromFiberToRoot(fiber);
+	const root = markUpdateLaneFromFiberToRoot(fiber, lane);
 	// 将新 lane 加入到根
 	markRootUpdated(root, lane);
 	// 开启 schedule
@@ -74,9 +74,19 @@ export function scheduleUpdateOnFiber(fiber: FiberNode, lane: Lane) {
 
 // ---------------------------------- 辅助函数 --------------------------------- //
 // 向上遍历，找到 fiberRootNode
-function markUpdateFromFiberToRoot(fiber: FiberNode) {
+// childLanes 的生产：从 fiber 的父节点到根，更新其 childLanes
+function markUpdateLaneFromFiberToRoot(fiber: FiberNode, lane: Lane) {
 	let node = fiber;
 	while (node.return !== null) {
+		const parent = node.return;
+		parent.childLanes = mergeLanes(parent.childLanes, lane);
+
+		// 先把阶段成果保存在 current，以免打断后丢失计算出的数据
+		const alternate = parent.alternate;
+		if (alternate !== null) {
+			alternate.childLanes = mergeLanes(alternate.childLanes, lane);
+		}
+
 		node = node.return;
 	}
 	if (node.tag === HostRoot) {

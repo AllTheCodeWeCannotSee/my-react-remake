@@ -20,6 +20,7 @@ import { Container } from './hostConfig';
 import { updateFiberProps } from 'react-dom/src/SyntheticEvent';
 import { popProvider } from './fiberContext';
 import { popSuspenseHandler } from './suspenseContext';
+import { mergeLanes, NoLanes } from './fiberLanes';
 
 // ---------------------------------- completeWork --------------------------------- //
 export const completeWork = (wip: FiberNode) => {
@@ -112,14 +113,20 @@ export const completeWork = (wip: FiberNode) => {
 function bubbleProperties(wip: FiberNode) {
 	let subtreeFlags = NoFlags;
 	let child = wip.child;
+	// bailout
+	let newChildLanes = NoLanes;
 	while (child !== null) {
 		subtreeFlags |= child.subtreeFlags;
 		subtreeFlags |= child.flags;
+
+		mergeLanes(child.lanes, child.childLanes);
+		newChildLanes = mergeLanes(newChildLanes, child.lanes);
 
 		child.return = wip;
 		child = child.sibling;
 	}
 	wip.subtreeFlags |= subtreeFlags;
+	wip.childLanes = newChildLanes;
 }
 
 /**

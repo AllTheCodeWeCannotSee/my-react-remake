@@ -93,6 +93,9 @@ export class FiberNode {
 	deletions: FiberNode[] | null;
 	// ---------------------------------- DOM --------------------------------- //
 	stateNode: any;
+	// ---------------------------------- bailout --------------------------------- //
+	lanes: Lanes; // 触发 setState，但是 state 没变
+	childLanes: Lanes;
 
 	constructor(tag: WorkTag, pendingProps: Props, key: Key) {
 		this.tag = tag;
@@ -117,6 +120,9 @@ export class FiberNode {
 		this.deletions = null;
 		// ---------------------------------- DOM --------------------------------- //
 		this.stateNode = null;
+		// ---------------------------------- bailout --------------------------------- //
+		this.lanes = NoLanes;
+		this.childLanes = NoLanes;
 	}
 }
 
@@ -148,6 +154,10 @@ export const createWorkInProgress = (
 	wip.memoizedProps = current.memoizedProps;
 	wip.memoizedState = current.memoizedState;
 	wip.ref = current.ref;
+
+	// 判断 bailout 四要素： state
+	wip.lanes = current.lanes;
+	wip.childLanes = current.lanes;
 
 	return wip;
 };

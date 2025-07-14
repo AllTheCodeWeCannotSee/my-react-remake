@@ -1,6 +1,7 @@
 import { Dispatch } from 'react/src/currentDispatcher';
 import { Action } from 'shared/ReactTypes';
-import { isSubsetOfLanes, Lane, NoLane } from './fiberLanes';
+import { isSubsetOfLanes, Lane, mergeLanes, NoLane } from './fiberLanes';
+import { FiberNode } from './fiber';
 
 // ---------------------------------- Update --------------------------------- //
 // 触发更新的方式1. ReactDOM.createRoot().render
@@ -78,7 +79,9 @@ export const createUpdateQueue = <State>() => {
 // // updateB.next === updateC;
 export const enqueueUpdate = <State>(
 	updateQueue: UpdateQueue<State>,
-	update: Update<State>
+	update: Update<State>,
+	fiber: FiberNode,
+	lane: Lane
 ) => {
 	const pending = updateQueue.shared.pending;
 
@@ -95,6 +98,14 @@ export const enqueueUpdate = <State>(
 	// 第1次：pending -> A
 	// 第2次：pending -> B
 	updateQueue.shared.pending = update;
+
+	// ............ bailout四要素：state ............
+	fiber.lanes = mergeLanes(fiber.lanes, lane);
+	const alternate = fiber.alternate;
+	// 先把阶段成果保存在 current，以免打断后丢失计算出的数据
+	if (alternate !== null) {
+		alternate.lanes = mergeLanes(alternate.lanes, lane);
+	}
 };
 
 // <ul
@@ -138,7 +149,8 @@ export const enqueueUpdate = <State>(
 export const processUpdateQueue = <State>(
 	baseState: State,
 	pendingUpdate: Update<State> | null,
-	renderLane: Lane
+	renderLane: Lane,
+	onSkipUpdate?: <State>(update: Update<State>) => void // 跳过链表中的某个 update 时，将这个 update 对应的 lane 重新加入 fibernode.lanes
 ): {
 	memoizedState: State;
 	baseState: State;
@@ -172,6 +184,8 @@ export const processUpdateQueue = <State>(
 			if (!isSubsetOfLanes(renderLane, updateLane)) {
 				// 优先级不够, 加入 baseQueue
 				const clone = createUpdate(pending.action, pending.lane);
+				// 被跳过的 update，传给
+				onSkipUpdate?.(clone);
 
 				if (newBaseQueueFirst === null) {
 					// 是第一个被跳过的

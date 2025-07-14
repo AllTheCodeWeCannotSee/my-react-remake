@@ -19,7 +19,7 @@ import {
 	SuspenseComponent
 } from './workTags';
 import { renderWithHooks } from './fiberHooks';
-import { Lane } from './fiberLanes';
+import { Lane, NoLanes } from './fiberLanes';
 import {
 	ChildDeletion,
 	DidCapture,
@@ -30,8 +30,23 @@ import {
 import { pushProvider } from './fiberContext';
 import { pushSuspenseHandler } from './suspenseContext';
 
+// bailout 四要素是否变化
+let didReceiveUpdate = false;
+
 // beginWork的工作是处理wip的子节点
 export const beginWork = (wip: FiberNode, renderLane: Lane) => {
+	// ............ bailout ............
+	// 原理：如果父组件的四要素不变，则子组件可以复用，不用 reconcileChildren
+	// 比较父组件的新旧： 1.props 2.type 3.state 4.context
+	didReceiveUpdate = false;
+	const current = wip.alternate;
+	// current 存在，才有 bailout 的可能
+	if (current !== null) {
+		//
+	}
+	wip.lanes = NoLanes; // why
+
+	// ............ 主体 ............
 	switch (wip.tag) {
 		case HostRoot:
 			return updateHostRoot(wip, renderLane);
@@ -368,4 +383,9 @@ function updateSuspenseFallbackChildren(
 	wip.child = primaryChildFragment;
 
 	return fallbackChildFragment;
+}
+
+// ............ bailout...........
+export function markWipReceivedUpdate() {
+	didReceiveUpdate = true;
 }

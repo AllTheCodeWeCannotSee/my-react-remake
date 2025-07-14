@@ -13,7 +13,7 @@ import {
 import { Action, ReactContext, Thenable, Usable } from 'shared/ReactTypes';
 import { scheduleUpdateOnFiber } from './workLoop';
 import { Flags, PassiveEffect } from './fiberFlags';
-import { Lane, NoLane, requestUpdateLane } from './fiberLanes';
+import { Lane, mergeLanes, NoLane, requestUpdateLane } from './fiberLanes';
 import { HookHasEffect, Passive } from './hookEffectTags';
 import currentBatchConfig from 'react/src/currentBatchConfig';
 import { REACT_CONTEXT_TYPE } from 'shared/ReactSymbols';
@@ -247,7 +247,7 @@ function dispatchSetState<State>(
 ) {
 	const lane = requestUpdateLane();
 	const update = createUpdate(action, lane);
-	enqueueUpdate(updateQueue, update);
+	enqueueUpdate(updateQueue, update, fiber, lane);
 	scheduleUpdateOnFiber(fiber, lane);
 }
 
@@ -301,11 +301,17 @@ function updateState<State>(): [State, Dispatch<State>] {
 	}
 	// 只有遗留的
 	if (baseQueue !== null) {
+		// 如果此 update 未被消费，将 lane 还给 fibernode.lanes
+		const onSkipUpdate = (update: Update<any>) => {
+			const skippeLane = update.lane;
+			const fiber = currentlyRenderingFiber as FiberNode;
+			fiber.lanes = mergeLanes(fiber.lanes, skippeLane);
+		};
 		const {
 			memoizedState,
 			baseQueue: newBaseQueue,
 			baseState: newBaseState
-		} = processUpdateQueue(baseState, baseQueue, renderLane);
+		} = processUpdateQueue(baseState, baseQueue, renderLane, onSkipUpdate);
 		hook.memoizedState = memoizedState;
 		hook.baseState = newBaseState;
 		hook.baseQueue = newBaseQueue;
