@@ -29,7 +29,7 @@ export function updateContainer(
 		// 获得优先级最高的 lane
 		const lane = requestUpdateLane();
 		const update = createUpdate(element, lane);
-		enqueueUpdate(hostRootFiber.updateQueue, update);
+		enqueueUpdate(hostRootFiber.updateQueue, update, hostRootFiber, lane);
 		scheduleUpdateOnFiber(hostRootFiber, lane);
 	});
 

@@ -13,11 +13,18 @@ import {
 import { Action, ReactContext, Thenable, Usable } from 'shared/ReactTypes';
 import { scheduleUpdateOnFiber } from './workLoop';
 import { Flags, PassiveEffect } from './fiberFlags';
-import { Lane, mergeLanes, NoLane, requestUpdateLane } from './fiberLanes';
+import {
+	Lane,
+	mergeLanes,
+	NoLane,
+	removeLanes,
+	requestUpdateLane
+} from './fiberLanes';
 import { HookHasEffect, Passive } from './hookEffectTags';
 import currentBatchConfig from 'react/src/currentBatchConfig';
 import { REACT_CONTEXT_TYPE } from 'shared/ReactSymbols';
 import { trackUsedThenable } from './thenable';
+import { markWipReceivedUpdate } from './beginWork';
 
 // ---------------------------------- 数据结构 --------------------------------- //
 // 当前在 render 的 fibernode
@@ -301,6 +308,7 @@ function updateState<State>(): [State, Dispatch<State>] {
 	}
 	// 只有遗留的
 	if (baseQueue !== null) {
+		const prevState = hook.memoizedState; // 用于 bailout 3.2 的比较
 		// 如果此 update 未被消费，将 lane 还给 fibernode.lanes
 		const onSkipUpdate = (update: Update<any>) => {
 			const skippeLane = update.lane;
@@ -312,6 +320,12 @@ function updateState<State>(): [State, Dispatch<State>] {
 			baseQueue: newBaseQueue,
 			baseState: newBaseState
 		} = processUpdateQueue(baseState, baseQueue, renderLane, onSkipUpdate);
+
+		// bailout 3.2
+		if (!Object.is(prevState, memoizedState)) {
+			markWipReceivedUpdate();
+		}
+
 		hook.memoizedState = memoizedState;
 		hook.baseState = newBaseState;
 		hook.baseQueue = newBaseQueue;
@@ -517,4 +531,14 @@ export function resetHooksOnUnwind(wip: FiberNode) {
 	currentlyRenderingFiber = null;
 	currentHook = null;
 	workInProgressHook = null;
+}
+
+// ---------------------------------- bailout --------------------------------- //
+// 对 hook 的 clone
+export function bailoutHook(wip: FiberNode, renderLane: Lane) {
+	const current = wip.alternate as FiberNode;
+	wip.updateQueue = current.updateQueue;
+	wip.flags &= ~PassiveEffect;
+
+	current.lanes = removeLanes(current.lanes, renderLane);
 }

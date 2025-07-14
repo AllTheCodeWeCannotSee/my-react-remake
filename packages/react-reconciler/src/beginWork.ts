@@ -1,5 +1,9 @@
 import { ReactElementType } from 'shared/ReactTypes';
-import { mountChildFibers, reconcileChildFibers } from './childFibers';
+import {
+	cloneChildFibers,
+	mountChildFibers,
+	reconcileChildFibers
+} from './childFibers';
 import {
 	createFiberFromFragment,
 	createFiberFromOffscreen,
@@ -18,8 +22,8 @@ import {
 	OffscreenComponent,
 	SuspenseComponent
 } from './workTags';
-import { renderWithHooks } from './fiberHooks';
-import { Lane, NoLanes } from './fiberLanes';
+import { bailoutHook, renderWithHooks } from './fiberHooks';
+import { includeSomeLanes, Lane, NoLanes } from './fiberLanes';
 import {
 	ChildDeletion,
 	DidCapture,
@@ -42,9 +46,38 @@ export const beginWork = (wip: FiberNode, renderLane: Lane) => {
 	const current = wip.alternate;
 	// current 存在，才有 bailout 的可能
 	if (current !== null) {
-		//
+		const oldProps = current.memoizedProps;
+		const newProps = wip.pendingProps;
+		if (oldProps !== newProps || current.type !== wip.type) {
+			// 判断：1.props 2.type，只要有一个不同就无法 bailout
+			didReceiveUpdate = true;
+		} else {
+			// 判断 3.state 4.context
+			const hasScheduledStateOrContext = checkScheduledUpdateOrContext(
+				current,
+				renderLane
+			);
+			if (!hasScheduledStateOrContext) {
+				// 3.1 本次更新的 lane，不在节点的 lanes 中，不需要更新节点的 state
+				// （还有3.2的情况，可以命中bailout， 多次 update(1) 的情况）
+				didReceiveUpdate = false;
+				switch (wip.tag) {
+					// 执行 updateContextProvider 中除了 reconcileChildren 的内容
+					case ContextProvider:
+						const contextValue = wip.memoizedProps.value; // 老值
+						const context = wip.type._context;
+						pushProvider(context, contextValue);
+						break;
+					// TODO: Suspense
+				}
+				return bailoutOnAlreadyFinishedWork(wip, renderLane);
+			}
+		}
 	}
-	wip.lanes = NoLanes; // why
+	// 能到这里，说明无法 bailout
+	// fibernode.lanes 存在的意义就是判断本次 render 该节点能否 bailout
+	// 得到确定的结果（不能）后重置，以迎接：接下来的要么是setState产生的lane，要么是子树 bubble 上来的 lane
+	wip.lanes = NoLanes;
 
 	// ............ 主体 ............
 	switch (wip.tag) {
@@ -85,6 +118,9 @@ function updateHostRoot(wip: FiberNode, renderLane: Lane) {
 	// pending = { action: <App />}
 	const pending = updateQueue.shared.pending;
 	updateQueue.shared.pending = null;
+
+	const prevChildren = wip.memoizedState; // 用于判断 bailout
+
 	const { memoizedState } = processUpdateQueue(baseState, pending, renderLane);
 	// wip.memoizedState = <App />
 	wip.memoizedState = memoizedState;
@@ -99,6 +135,10 @@ function updateHostRoot(wip: FiberNode, renderLane: Lane) {
 	const nextChildren = wip.memoizedState;
 	// 标记 Ref
 	markRef(wip.alternate, wip);
+	// bailout
+	if (prevChildren === nextChildren) {
+		return bailoutOnAlreadyFinishedWork(wip, renderLane);
+	}
 	reconcileChildren(wip, nextChildren);
 	return wip.child;
 }
@@ -113,6 +153,16 @@ function updateHostComponent(wip: FiberNode) {
 function updateFunctionComponent(wip: FiberNode, renderLane: Lane) {
 	// nextChildren = <span>你好，世界！</span>
 	const nextChildren = renderWithHooks(wip, renderLane);
+
+	// bailout 3.2
+	const current = wip.alternate;
+	if (current !== null && !didReceiveUpdate) {
+		// 水电克隆
+		bailoutHook(wip, renderLane);
+		// 大楼克隆
+		return bailoutOnAlreadyFinishedWork(wip, renderLane);
+	}
+
 	reconcileChildren(wip, nextChildren);
 	return wip.child;
 }
@@ -388,4 +438,36 @@ function updateSuspenseFallbackChildren(
 // ............ bailout...........
 export function markWipReceivedUpdate() {
 	didReceiveUpdate = true;
+}
+
+// 检查该节点包含的所有优先级的更新中，是否存在本次渲染的lane
+function checkScheduledUpdateOrContext(
+	current: FiberNode,
+	renderLane: Lane
+): boolean {
+	const updateLanes = current.lanes;
+	if (includeSomeLanes(updateLanes, renderLane)) {
+		return true;
+	}
+	return false;
+}
+
+// wip 的四要素都没变化, 才会执行到这
+function bailoutOnAlreadyFinishedWork(wip: FiberNode, renderLane: Lane) {
+	// A -> B -> C
+	// wip = A, child = B
+	if (!includeSomeLanes(wip.childLanes, renderLane)) {
+		// 子树state也没改变 -> bailout整棵子树
+		if (__DEV__) {
+			console.warn('bailout整棵子树', wip);
+		}
+		return null;
+	}
+	if (__DEV__) {
+		console.warn('bailout一个fiber', wip);
+	}
+	// B 的 state 有变化，只能跳过一步 reconcileChildren(A)
+	// 也就是说 clone(B)
+	cloneChildFibers(wip);
+	return wip.child;
 }

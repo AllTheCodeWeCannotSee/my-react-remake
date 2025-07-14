@@ -34,3 +34,11 @@ enqueueUpdate
 
 updateState
 processUpdateQueue
+
+### 重置
+
+#### beginWork中：wip.lanes = NoLanes;
+
+fibernode.lanes 存在的意义就是判断本次 render 该节点能否 bailout
+
+得到确定的结果（不能）后重置，以迎接：接下来的要么是setState产生的lane，要么是子树 bubble 上来的 lane

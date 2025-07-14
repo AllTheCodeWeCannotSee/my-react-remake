@@ -123,3 +123,11 @@ export function markRootSuspended(root: FiberRootNode, suspendedLane: Lane) {
 	root.suspendedLanes |= suspendedLane;
 	root.pingedLanes &= ~suspendedLane;
 }
+// ---------------------------------- bailout --------------------------------- //
+export function includeSomeLanes(set: Lanes, subset: Lane | Lanes): boolean {
+	return (set & subset) !== NoLanes;
+}
+
+export function removeLanes(set: Lanes, subset: Lanes | Lane): Lanes {
+	return set & ~subset;
+}

@@ -374,3 +374,35 @@ function ChildReconciler(shouldTrackEffects: boolean) {
 		return null;
 	};
 }
+
+// ---------------------------------- bailout --------------------------------- //
+// .................
+// current tree:
+// A
+// |-- B
+// |   `-- D
+// `-- C
+// wip tree:
+// A
+// .................
+// 职责：将 B C 的克隆连接到 A
+export function cloneChildFibers(wip: FiberNode) {
+	// A 没有子节点
+	if (wip.child === null) {
+		return;
+	}
+	// A 的第一个子节点 B
+	let currentChild = wip.child;
+	let newChild = createWorkInProgress(currentChild, currentChild.pendingProps);
+	wip.child = newChild;
+	newChild.return = wip;
+	// A 的剩余子节点
+	while (currentChild.sibling !== null) {
+		currentChild = currentChild.sibling;
+		newChild = newChild.sibling = createWorkInProgress(
+			currentChild,
+			currentChild.pendingProps
+		);
+		newChild.return = wip;
+	}
+}
