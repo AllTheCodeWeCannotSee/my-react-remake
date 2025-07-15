@@ -13,6 +13,7 @@ import {
 	HostComponent,
 	HostRoot,
 	HostText,
+	MemoComponent,
 	OffscreenComponent,
 	SuspenseComponent
 } from './workTags';
@@ -99,6 +100,9 @@ export const completeWork = (wip: FiberNode) => {
 				bubbleProperties(offscreenFiber);
 			}
 			// 3/3. 其他情况
+			bubbleProperties(wip);
+			return null;
+		case MemoComponent:
 			bubbleProperties(wip);
 			return null;
 		default:

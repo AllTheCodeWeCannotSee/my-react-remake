@@ -77,8 +77,8 @@ export function scheduleUpdateOnFiber(fiber: FiberNode, lane: Lane) {
 // childLanes 的生产：从 fiber 的父节点到根，更新其 childLanes
 function markUpdateLaneFromFiberToRoot(fiber: FiberNode, lane: Lane) {
 	let node = fiber;
-	while (node.return !== null) {
-		const parent = node.return;
+	let parent = node.return;
+	while (parent !== null) {
 		parent.childLanes = mergeLanes(parent.childLanes, lane);
 
 		// 先把阶段成果保存在 current，以免打断后丢失计算出的数据
@@ -87,8 +87,10 @@ function markUpdateLaneFromFiberToRoot(fiber: FiberNode, lane: Lane) {
 			alternate.childLanes = mergeLanes(alternate.childLanes, lane);
 		}
 
-		node = node.return;
+		node = parent;
+		parent = node.return;
 	}
+
 	if (node.tag === HostRoot) {
 		return node.stateNode;
 	}

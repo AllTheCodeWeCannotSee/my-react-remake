@@ -107,6 +107,7 @@ export const enqueueUpdate = <State>(
 	updateQueue.shared.pending = update;
 
 	// ............ bailout四要素：state ............
+	// 生产 fiber.lanes
 	fiber.lanes = mergeLanes(fiber.lanes, lane);
 	const alternate = fiber.alternate;
 	// 先把阶段成果保存在 current，以免打断后丢失计算出的数据

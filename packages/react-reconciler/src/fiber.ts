@@ -5,6 +5,7 @@ import {
 	Fragment,
 	FunctionComponent,
 	HostComponent,
+	MemoComponent,
 	OffscreenComponent,
 	SuspenseComponent,
 	WorkTag
@@ -13,7 +14,11 @@ import { Flags, NoFlags } from './fiberFlags';
 import { Lane, Lanes, NoLane, NoLanes } from './fiberLanes';
 import { Effect } from './fiberHooks';
 import { CallbackNode } from 'scheduler';
-import { REACT_PROVIDER_TYPE, REACT_SUSPENSE_TYPE } from 'shared/ReactSymbols';
+import {
+	REACT_MEMO_TYPE,
+	REACT_PROVIDER_TYPE,
+	REACT_SUSPENSE_TYPE
+} from 'shared/ReactSymbols';
 
 export interface PendingPassiveEffects {
 	unmount: Effect[];
@@ -157,7 +162,7 @@ export const createWorkInProgress = (
 
 	// 判断 bailout 四要素： state
 	wip.lanes = current.lanes;
-	wip.childLanes = current.lanes;
+	wip.childLanes = current.childLanes;
 
 	return wip;
 };
@@ -172,11 +177,14 @@ export function createFiberFromElement(element: ReactElementType): FiberNode {
 		// host
 		fiberTag = HostComponent;
 	} else if (
-		// context.provider
 		typeof type === 'object' &&
 		type.$$typeof === REACT_PROVIDER_TYPE
 	) {
+		// context.provider
 		fiberTag = ContextProvider;
+	} else if (typeof type === 'object' && type.$$typeof === REACT_MEMO_TYPE) {
+		// memo
+		fiberTag = MemoComponent;
 	} else if (type === REACT_SUSPENSE_TYPE) {
 		// suspense
 		fiberTag = SuspenseComponent;
