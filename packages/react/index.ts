@@ -49,3 +49,8 @@ export const use: Dispatcher['use'] = (useable) => {
 	const dispatcher = resolveDispatcher() as Dispatcher;
 	return dispatcher.use(useable);
 };
+
+export const useCallback: Dispatcher['useCallback'] = (callback, deps) => {
+	const dispatcher = resolveDispatcher() as Dispatcher;
+	return dispatcher.useCallback(callback, deps);
+};

@@ -56,12 +56,12 @@ interface Hook {
 
 // effect
 type EffectCallback = () => void;
-type EffectDeps = any[] | null;
+export type HookDeps = any[] | null;
 export interface Effect {
 	tag: Flags;
 	create: EffectCallback | void;
 	destroy: EffectCallback | void;
-	deps: EffectDeps;
+	deps: HookDeps;
 	next: Effect | null;
 }
 export interface FCUpdateQueue<State> extends UpdateQueue<State> {
@@ -125,7 +125,8 @@ const HooksDispatcherOnMount: Dispatcher = {
 	useTransition: mountTransition,
 	useRef: mountRef,
 	useContext: readContext,
-	use
+	use,
+	useCallback: mountCallback
 };
 // 创建空的 Hook, 并连接到链表 fibernode.memoizedState中
 function mountWorkInProgresHook(): Hook {
@@ -166,7 +167,8 @@ const HooksDispatcherOnUpdate: Dispatcher = {
 	useTransition: updateTransition,
 	useRef: updateRef,
 	useContext: readContext,
-	use
+	use,
+	useCallback: updateCallback
 };
 
 // 根据老 Hook 创建新 Hook, 尾插到 fiber.memoizedState
@@ -372,7 +374,7 @@ function updateState<State>(): [State, Dispatch<State>] {
 // ---------------------------------- useEffect --------------------------------- //
 
 // ............... mount ...............
-function mountEffect(create: EffectCallback | void, deps: EffectDeps | void) {
+function mountEffect(create: EffectCallback | void, deps: HookDeps | void) {
 	const nextDeps = deps === undefined ? null : deps;
 	// 1. 在链表上创建一个新 Hook
 	const hook = mountWorkInProgresHook();
@@ -391,7 +393,7 @@ function pushEffect(
 	hookFlags: Flags,
 	create: EffectCallback | void,
 	destroy: EffectCallback | void,
-	deps: EffectDeps
+	deps: HookDeps
 ): Effect {
 	// 1. 创建 Effect
 	const effect: Effect = {
@@ -443,7 +445,7 @@ function createFCUpdateQueue<State>() {
 }
 // ............ update ............
 // 创建新 Hooks，比较依赖项
-function updateEffect(create: EffectCallback | void, deps: EffectDeps | void) {
+function updateEffect(create: EffectCallback | void, deps: HookDeps | void) {
 	const nextDeps = deps === undefined ? null : deps;
 	let destroy: EffectCallback | void;
 	// 1. 老数据创建新 Hook, 并连接到 fiber.memoizedState 链表上
@@ -473,7 +475,7 @@ function updateEffect(create: EffectCallback | void, deps: EffectDeps | void) {
 }
 
 // 浅比较
-function areHookInputsEqual(nextDeps: EffectDeps, prevDeps: EffectDeps) {
+function areHookInputsEqual(nextDeps: HookDeps, prevDeps: HookDeps) {
 	if (prevDeps === null || nextDeps === null) {
 		return false;
 	}
@@ -576,4 +578,30 @@ export function bailoutHook(wip: FiberNode, renderLane: Lane) {
 	wip.flags &= ~PassiveEffect;
 
 	current.lanes = removeLanes(current.lanes, renderLane);
+}
+
+// ---------------------------------- useCallback --------------------------------- //
+// const addOne = useCallback(() => update((num) => num + 1), []);
+
+// mount
+function mountCallback<T>(callback: T, deps: HookDeps | undefined) {
+	const hook = mountWorkInProgresHook();
+	const nextDeps = deps === undefined ? null : deps;
+	hook.memoizedState = [callback, nextDeps];
+	return callback;
+}
+// update
+function updateCallback<T>(callback: T, deps: HookDeps | undefined) {
+	const hook = updateWorkInProgresHook();
+	const nextDeps = deps === undefined ? null : deps;
+	const prevState = hook.memoizedState;
+
+	if (nextDeps !== null) {
+		const prevDeps = prevState[1];
+		if (areHookInputsEqual(nextDeps, prevDeps)) {
+			return prevDeps[0];
+		}
+	}
+	hook.memoizedState = [callback, nextDeps];
+	return callback;
 }

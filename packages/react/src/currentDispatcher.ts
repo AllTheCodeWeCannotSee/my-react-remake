@@ -1,5 +1,6 @@
 // 存储了当前的操作的 hooks
 
+import { HookDeps } from 'react-reconciler/src/fiberHooks';
 import { Action, ReactContext, Usable } from 'shared/ReactTypes';
 
 // setCount(1)
@@ -21,11 +22,12 @@ export type Dispatch<State> = (action: Action<State>) => void;
 
 export interface Dispatcher {
 	useState: <T>(initialState: (() => T) | T) => [T, Dispatch<T>];
-	useEffect: (callback: () => void, deps: any[] | void) => void;
+	useEffect: (callback: () => void, deps: HookDeps | undefined) => void;
 	useTransition: () => [boolean, (callback: () => void) => void];
 	useRef: <T>(initialState: T) => { current: T };
 	useContext: <T>(context: ReactContext<T>) => T;
 	use: <T>(usable: Usable<T>) => T;
+	useCallback: <T>(callback: T, deps: HookDeps | undefined) => T;
 }
 
 const currentDispatcher: { current: Dispatcher | null } = {
