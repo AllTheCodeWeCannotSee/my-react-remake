@@ -28,6 +28,7 @@ export interface Dispatcher {
 	useContext: <T>(context: ReactContext<T>) => T;
 	use: <T>(usable: Usable<T>) => T;
 	useCallback: <T>(callback: T, deps: HookDeps | undefined) => T;
+	useMemo: <T>(nextCreate: () => T, deps: HookDeps | undefined) => T;
 }
 
 const currentDispatcher: { current: Dispatcher | null } = {

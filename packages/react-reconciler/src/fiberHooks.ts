@@ -126,7 +126,8 @@ const HooksDispatcherOnMount: Dispatcher = {
 	useRef: mountRef,
 	useContext: readContext,
 	use,
-	useCallback: mountCallback
+	useCallback: mountCallback,
+	useMemo: mountMemo
 };
 // 创建空的 Hook, 并连接到链表 fibernode.memoizedState中
 function mountWorkInProgresHook(): Hook {
@@ -168,7 +169,8 @@ const HooksDispatcherOnUpdate: Dispatcher = {
 	useRef: updateRef,
 	useContext: readContext,
 	use,
-	useCallback: updateCallback
+	useCallback: updateCallback,
+	useMemo: updateMemo
 };
 
 // 根据老 Hook 创建新 Hook, 尾插到 fiber.memoizedState
@@ -599,9 +601,39 @@ function updateCallback<T>(callback: T, deps: HookDeps | undefined) {
 	if (nextDeps !== null) {
 		const prevDeps = prevState[1];
 		if (areHookInputsEqual(nextDeps, prevDeps)) {
-			return prevDeps[0];
+			return prevState[0];
 		}
 	}
 	hook.memoizedState = [callback, nextDeps];
 	return callback;
+}
+
+// ---------------------------------- useMemo --------------------------------- //
+
+// const config = useMemo(() => { return { num } }, [num]);
+
+// mount
+function mountMemo<T>(nextCreate: () => T, deps: HookDeps | undefined) {
+	const hook = mountWorkInProgresHook();
+	const nextDeps = deps === undefined ? null : deps;
+	const nextValue = nextCreate();
+	hook.memoizedState = [nextValue, nextDeps];
+	return nextValue;
+}
+// update
+function updateMemo<T>(nextCreate: () => T, deps: HookDeps | undefined) {
+	const hook = updateWorkInProgresHook();
+	const nextDeps = deps === undefined ? null : deps;
+	const prevState = hook.memoizedState;
+
+	if (nextDeps !== null) {
+		const prevDeps = prevState[1];
+		if (areHookInputsEqual(nextDeps, prevDeps)) {
+			return prevState[0];
+		}
+	}
+
+	const nextValue = nextCreate();
+	hook.memoizedState = [nextValue, nextDeps];
+	return nextValue;
 }
