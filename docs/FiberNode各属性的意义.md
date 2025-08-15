@@ -14,7 +14,9 @@ pendingProps:
   alternate:
   ---------------------------------- 状态 ---------------------------------
   memoizedProps:
-  memoizedState: 指向一个链表，链表的元素是Hooks（useState、useEffect...）
+  memoizedState: 
+  - HostRoot: <App/ > , 是 ReactElement
+  - 其他：指向一个链表，链表的元素是Hooks（useState、useEffect...）
   updateQueue:
   ---------------------------------- 副作用 ---------------------------------
   flags:
